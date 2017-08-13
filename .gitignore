@@ -1,0 +1,8 @@
+*~
+*.o
+.*.d
+Makefile.inc
+kernel.elf
+diskimage/
+html/
+latex/
