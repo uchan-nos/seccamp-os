@@ -48,7 +48,7 @@ namespace
             for (size_t i = 0; i < num_pci_devices; ++i)
             {
                 const auto& param = pci_devices[i];
-                printf("%02x:%02x.%02x"
+                printk("%02x:%02x.%02x"
                     " DEVICE %04x, VENDOR %04x"
                     " CLASS %02x.%02x.%02x HT %02x\n",
                     param.bus, param.dev, param.func,
@@ -63,7 +63,7 @@ namespace
             auto res = sscanf(argv[1], "%02x:%02x.%02x", &bus, &dev, &func);
             if (res != 3)
             {
-                printf("Invalid device specifier: %s\n", argv[1]);
+                printk("Invalid device specifier: %s\n", argv[1]);
                 return;
             }
 
@@ -81,12 +81,12 @@ namespace
 
             if (device_index < 0)
             {
-                printf("No such device: %s\n", argv[1]);
+                printk("No such device: %s\n", argv[1]);
                 return;
             }
 
             const auto& param = pci_devices[device_index];
-            printf("%02x:%02x.%02x"
+            printk("%02x:%02x.%02x"
                 " DEVICE %04x, VENDOR %04x"
                 " CLASS %02x.%02x.%02x HT %02x\n",
                 param.bus, param.dev, param.func,
@@ -97,17 +97,17 @@ namespace
             auto device = pci::Device(bus, dev, func, param.header_type);
 
             auto status_command = device.ReadConfReg(0x04);
-            printf("status %04x, command %04x\n",
+            printk("status %04x, command %04x\n",
                 (status_command >> 16) & 0xffffu,
                 status_command & 0xffffu);
 
             for (int i = 0; i < 6; ++i)
             {
                 auto bar = device.ReadConfReg(0x10 + 4 * i);
-                printf("bar %d: %08x\n", i, bar);
+                printk("bar %d: %08x\n", i, bar);
             }
 
-            printf("bar map size: %lx\n", CalcBarMapSize(device, 0).value);
+            printk("bar map size: %lx\n", CalcBarMapSize(device, 0).value);
 
             uint8_t cap_ptr = device.ReadCapabilityPointer();
             while (cap_ptr != 0)
@@ -115,15 +115,15 @@ namespace
                 auto cap = device.ReadCapabilityStructure(cap_ptr);
                 if (cap.cap_id == 0x10)
                 {
-                    printf("Cap ID 0x10 (PCI Express)\n");
+                    printk("Cap ID 0x10 (PCI Express)\n");
                     auto pcie_cap = pci::ReadPcieCapabilityStructure(device, cap_ptr);
-                    printf(" PCIeCap: %04x, DevCap: %08x, DevCon: %04x, DevStat: %04x\n",
+                    printk(" PCIeCap: %04x, DevCap: %08x, DevCon: %04x, DevStat: %04x\n",
                         pcie_cap.pcie_cap, pcie_cap.device_cap,
                         pcie_cap.device_control, pcie_cap.device_status);
                 }
                 else
                 {
-                    printf("Cap ID %02x\n", cap.cap_id);
+                    printk("Cap ID %02x\n", cap.cap_id);
                 }
                 cap_ptr = cap.next_ptr;
             }
@@ -168,7 +168,7 @@ namespace
                 || desc->Type == EfiBootServicesData
                 || desc->Type == EfiConventionalMemory;
 
-            printf("%c %08lx - %08lx: %05lx pages %s (%s)\n",
+            printk("%c %08lx - %08lx: %05lx pages %s (%s)\n",
                 last_addr > 0 && last_addr == desc->PhysicalStart ? '*' : ' ',
                 desc->PhysicalStart,
                 desc->PhysicalStart + desc->NumberOfPages * 4096 - 1,
@@ -197,7 +197,7 @@ namespace
             const auto& p = pci_devices[xhci_dev_index];
             if (p.base_class == 0x0c && p.sub_class == 0x03 && p.interface == 0x30)
             {
-                printf("found an xHCI device at %02x:%02x.%02x\n",
+                printk("found an xHCI device at %02x:%02x.%02x\n",
                     p.bus, p.dev, p.func);
                 break;
             }
@@ -205,7 +205,7 @@ namespace
 
         if (xhci_dev_index == num_pci_devices)
         {
-            printf("no xHCI device\n");
+            printk("no xHCI device\n");
             return;
         }
 
@@ -218,14 +218,14 @@ namespace
         auto& cap_reg = xhc.CapabilityRegisters();
         auto& op_reg = xhc.OperationalRegisters();
 
-        printf("CAPLENGTH=%02x HCIVERSION=%04x"
+        printk("CAPLENGTH=%02x HCIVERSION=%04x"
             " DBOFF=%08x RTSOFF=%08x"
             " HCSPARAMS1=%08x HCCPARAMS1=%08x\n",
             cap_reg.ReadCAPLENGTH(), cap_reg.ReadHCIVERSION(),
             cap_reg.DBOFF.Read(), cap_reg.RTSOFF.Read(),
             cap_reg.HCSPARAMS1.Read(), cap_reg.HCCPARAMS1.Read());
 
-        printf("USBCMD=%08x USBSTS=%08x DCBAAP=%016lx CONFIG=%08x\n",
+        printk("USBCMD=%08x USBSTS=%08x DCBAAP=%016lx CONFIG=%08x\n",
             op_reg.USBCMD.Read(), op_reg.USBSTS.Read(),
             op_reg.DCBAAP.Read(), op_reg.CONFIG.Read());
 
@@ -237,7 +237,7 @@ namespace
         unsigned char cr_cycle_bit = 1;
         memset(cr_buf, 0, sizeof(cr_buf));
         op_reg.CRCR.Write(reinterpret_cast<uint64_t>(&cr_buf[0]) | cr_cycle_bit);
-        printf("Write to CRCR cr_buf=%016lx\n", reinterpret_cast<uint64_t>(&cr_buf[0]));
+        printk("Write to CRCR cr_buf=%016lx\n", reinterpret_cast<uint64_t>(&cr_buf[0]));
 
 
         auto interrupter_reg_sets = xhc.InterrupterRegSets();
@@ -248,23 +248,23 @@ namespace
 
         if (er_mgr.HasFront())
         {
-            printf("ER has at least one element\n");
+            printk("ER has at least one element\n");
         }
         else
         {
-            printf("ER has no element\n");
+            printk("ER has no element\n");
         }
 
         while (er_mgr.HasFront())
         {
             auto& trb = er_mgr.Front();
-            printf("%08x %08x %08x %08x (type=%u)\n",
+            printk("%08x %08x %08x %08x (type=%u)\n",
                 trb.dwords[0], trb.dwords[1], trb.dwords[2], trb.dwords[3], trb.bits.trb_type);
         }
 
         xhc.Initialize();
 
-        printf("CCS+CSC: ");
+        printk("CCS+CSC: ");
         for (auto& port_reg : xhc.PortRegSets())
         {
             const auto port_status = port_reg.PORTSC.Read();
@@ -272,13 +272,13 @@ namespace
         }
         putchar('\n');
 
-        printf("SEGM TABLE Base=%016lx Size=%lu\n",
+        printk("SEGM TABLE Base=%016lx Size=%lu\n",
             reinterpret_cast<uint64_t>(er_mgr.SegmentTable()),
             er_mgr.SegmentTableSize());
         for (size_t st_index = 0; st_index < er_mgr.SegmentTableSize(); st_index++)
         {
             const auto& seg_table = er_mgr.SegmentTable()[st_index];
-            printf("SEGM TABLE %u: Base=%016lx Size=%u\n",
+            printk("SEGM TABLE %u: Base=%016lx Size=%u\n",
                 st_index,
                 seg_table.segment_base_address_,
                 seg_table.segment_size_);
@@ -286,7 +286,7 @@ namespace
 
         uint64_t rtsbase = mmio_base + cap_reg.RTSOFF.Read();
         uint32_t* ir0 = reinterpret_cast<uint32_t*>(rtsbase + 0x20u);
-        printf("ERSTSZ=%u ERSTBA=%016lx ERDP=%016lx\n",
+        printk("ERSTSZ=%u ERSTBA=%016lx ERDP=%016lx\n",
             ir0[2],
             ir0[4] | (static_cast<uint64_t>(ir0[5]) << 32),
             ir0[6] | (static_cast<uint64_t>(ir0[7]) << 32));
@@ -301,14 +301,14 @@ namespace
             }
 
             const auto& sc = dcaddr->slot_context;
-            printf("DevCtx %u: Hub=%d, #EP=%d, slot state %02x, usb dev addr %02x\n",
+            printk("DevCtx %u: Hub=%d, #EP=%d, slot state %02x, usb dev addr %02x\n",
                 slot_id, sc.bits.hub, sc.bits.context_entries,
                 sc.bits.slot_state, sc.bits.usb_device_address);
 
             for (size_t ep_index = 0; ep_index < sc.bits.context_entries; ++ep_index)
             {
                 const auto& ep = dcaddr->ep_contexts[ep_index];
-                printf("EP %u: state %u, type %u, MaxBSiz %u, MaxPSiz %u\n",
+                printk("EP %u: state %u, type %u, MaxBSiz %u, MaxPSiz %u\n",
                     ep_index, ep.bits.ep_state, ep.bits.ep_type,
                     ep.bits.max_burst_size, ep.bits.max_packet_size);
             }
@@ -332,24 +332,24 @@ namespace
                 cr_buf[0].dwords[i] = cmd.dwords[i];
             }
 
-            printf("Put a command to %p\n", cr_buf[0].dwords);
+            printk("Put a command to %p\n", cr_buf[0].dwords);
 
-            printf("writing doorbell. R/S=%u, CRR=%u\n",
+            printk("writing doorbell. R/S=%u, CRR=%u\n",
                 op_reg.USBCMD.Read() & 1u, (op_reg.CRCR.Read() >> 3) & 1u);
 
             doorbell_registers[0].DB.Write(0);
 
-            printf("doorbell written. R/S=%u, CRR=%u\n",
+            printk("doorbell written. R/S=%u, CRR=%u\n",
                 op_reg.USBCMD.Read() & 1u, (op_reg.CRCR.Read() >> 3) & 1u);
 
             while ((op_reg.CRCR.Read() & 8) == 0);
 
-            printf("CRCR %016lx\n", op_reg.CRCR.Read());
+            printk("CRCR %016lx\n", op_reg.CRCR.Read());
 
-            printf("CRCR.CRR got to be 1. R/S=%u, CRR=%u\n",
+            printk("CRCR.CRR got to be 1. R/S=%u, CRR=%u\n",
                 op_reg.USBCMD.Read() & 1u, (op_reg.CRCR.Read() >> 3) & 1u);
 
-            printf("waiting completion event (c=%d)\n",
+            printk("waiting completion event (c=%d)\n",
                 er_mgr.Front().bits.cycle_bit);
 
             while (!er_mgr.HasFront());
@@ -357,7 +357,7 @@ namespace
             auto trb = er_mgr.Front();
             er_mgr.Pop();
 
-            printf("completed! TRB type=%u ptr=%016lx\n",
+            printk("completed! TRB type=%u ptr=%016lx\n",
                 trb.bits.trb_type, &trb);
 
         }
@@ -378,7 +378,7 @@ namespace
             const auto slot_state_dev_addr =
                 *reinterpret_cast<uint32_t*>(dc_base_addr + 0x0c);
             const auto num_endpoint = slot_info >> 27;
-            printf("DevCtx %u: Hub=%d, #EP=%d, slot state %02x, usb dev addr %02x\n",
+            printk("DevCtx %u: Hub=%d, #EP=%d, slot state %02x, usb dev addr %02x\n",
                 i, (slot_info >> 26) & 1u, num_endpoint,
                 slot_state_dev_addr >> 27, slot_state_dev_addr & 0xffu);
 
@@ -389,7 +389,7 @@ namespace
                     *reinterpret_cast<uint32_t*>(ep_addr + 0x00);
                 const auto ep_type =
                     *reinterpret_cast<uint32_t*>(ep_addr + 0x04);
-                printf("EP %u: state %u, type %u, MaxBSiz %u, MaxPSiz %u\n",
+                printk("EP %u: state %u, type %u, MaxBSiz %u, MaxPSiz %u\n",
                     ep, ep_state & 0x7u, (ep_type >> 3) & 0x7u,
                     (ep_type >> 8) & 0xffu, ep_type >> 16);
             }
@@ -414,7 +414,7 @@ namespace
                 | (12 << 10) // TRB Type
                 | cycle_state;
 
-            printf("cr_base %016lx, input_context %016lx\n",
+            printk("cr_base %016lx, input_context %016lx\n",
                 reinterpret_cast<uint64_t>(cr_base), input_context_base);
 
             const uint64_t ers0 = reinterpret_cast<uint64_t*>(erst_base)[0];
@@ -423,16 +423,16 @@ namespace
                 bitutil::ClearBits(interrupter0_registers[6], 0xfu) |
                 (static_cast<uint64_t>(interrupter0_registers[7]) << 32);
             const volatile uint32_t* er_entry = reinterpret_cast<uint32_t*>(erdp);
-            printf("erst[0] = %016lx, sizeof erst[0] = %u, erdp = %016lx\n",
+            printk("erst[0] = %016lx, sizeof erst[0] = %u, erdp = %016lx\n",
                 ers0, ers0_size, erdp);
-            printf("waiting completion event (c=%d)\n", er_entry[3] & 1);
+            printk("waiting completion event (c=%d)\n", er_entry[3] & 1);
 
             volatile uint32_t* doorbell = reinterpret_cast<uint32_t*>(
                 bitutil::ClearBits(cap_reg.Read(cap_reg.DBOFF), 3u));
             doorbell[0] = 0;
 
             crcr = op_reg.Read64(op_reg.CRCR);
-            printf("CRCR %016lx, USBCMD %08x\n", crcr, op_reg.Read32(op_reg.USBCMD));
+            printk("CRCR %016lx, USBCMD %08x\n", crcr, op_reg.Read32(op_reg.USBCMD));
 
             while ((er_entry[3] & 1) == 0);
 
@@ -440,7 +440,7 @@ namespace
                 bitutil::ClearBits(er_entry[0], 0xfu) |
                 (static_cast<uint64_t>(er_entry[1]) << 32);
 
-            printf("completed! (c=%d) Command TRB %016lx\n",
+            printk("completed! (c=%d) Command TRB %016lx\n",
                 er_entry[3] & 1, command_trb);
         }
     */
@@ -457,12 +457,12 @@ namespace
         uint64_t cr3;
         __asm__("mov %%cr3, %0\n\t"
                 : "=r"(cr3));
-        printf("CR3=%016lx\n", cr3);
+        printk("CR3=%016lx\n", cr3);
 
         const uint32_t* addr = reinterpret_cast<uint32_t*>(0x7e60000u);
         const uint32_t* addr_virt = reinterpret_cast<uint32_t*>(0xfffff00000060000lu);
-        printf("%08x\n", *addr);
-        //printf("%08x\n", *addr_virt);
+        printk("%08x\n", *addr);
+        //printk("%08x\n", *addr_virt);
 
         uint64_t* pml4 = reinterpret_cast<uint64_t*>(bitutil::ClearBits(cr3, 0xfffu));
         page_dir_ptr_table[0] = reinterpret_cast<uint64_t>(page_directory) | 0x03u;
@@ -470,11 +470,11 @@ namespace
 
         pml4[0x1e0] = reinterpret_cast<uint64_t>(page_dir_ptr_table) | 0x03u;
 
-        printf("%08x\n", *addr);
-        printf("accessing to page\n");
+        printk("%08x\n", *addr);
+        printk("accessing to page\n");
 
-        printf("%08x\n", *addr_virt);
-        printf("successed!\n");
+        printk("%08x\n", *addr_virt);
+        printk("successed!\n");
     }
 }
 

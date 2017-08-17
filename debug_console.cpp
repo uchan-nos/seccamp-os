@@ -148,7 +148,7 @@ namespace bitnos
 
         if (!found)
         {
-            printf("no such command: %s\n", argv[0]);
+            printk("no such command: %s\n", argv[0]);
         }
     }
 

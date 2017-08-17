@@ -48,10 +48,24 @@ extern "C" int write(int file, char *ptr, int len)
     return len;
 }
 
+extern "C" int printk(const char* format, ...)
+{
+    va_list ap;
+    int result;
+    char s[1024];
+
+    va_start(ap, format);
+    result = vsprintk(s, format, ap);
+    write(1, s, result);
+    va_end(ap);
+
+    return result;
+}
+
 void print_desc_table(void)
 {
     auto gdtr = GetGDTR();
-    printf("GDTR: Base %08lx, Limit %x\n", gdtr.base, gdtr.limit);
+    printk("GDTR: Base %08lx, Limit %x\n", gdtr.base, gdtr.limit);
 
     for (unsigned int i = 0; i <= (gdtr.limit >> 3); i++) {
         uint32_t *p = (uint32_t*)(gdtr.base + (i << 3));
@@ -65,14 +79,14 @@ void print_desc_table(void)
         uint8_t attr_dpl = (p[1] >> 13) & 3;
         uint8_t attr_s = (p[1] >> 12) & 1;
         uint8_t attr_type = (p[1] >> 8) & 15;
-        printf("%3u: Base=%08x Limit=%05x "
+        printk("%3u: Base=%08x Limit=%05x "
             "G=%d D/B=%d L=%d AVL=%d P=%d DPL=%d S=%d Type=%d\n",
             i, base, limit,
             attr_g, attr_db, attr_l, attr_avl, attr_p, attr_dpl, attr_s, attr_type);
     }
 
     auto idtr = GetIDTR();
-    printf("IDTR: Base %08lx, Limit %x\n", idtr.base, idtr.limit);
+    printk("IDTR: Base %08lx, Limit %x\n", idtr.base, idtr.limit);
 
     for (unsigned int i = 0x20; i <= (idtr.limit >> 4) && i < 0x30; i++) {
         uint32_t *p = (uint32_t*)(idtr.base + (i << 4));
@@ -85,18 +99,18 @@ void print_desc_table(void)
         uint8_t attr_ist = p[1] & 7;
         if (attr_type != 15 && attr_type != 14)
         {
-            printf("%3u: It is not 64-bit interrupt and trap gates!\n", i);
+            printk("%3u: It is not 64-bit interrupt and trap gates!\n", i);
             break;
         }
 
-        printf("%3u: Selector=%04x Offset=%016lx "
+        printk("%3u: Selector=%04x Offset=%016lx "
             "P=%d DPL=%d Type=%d(D=%d) IST=%d\n",
             i, selector, offset, attr_p, attr_dpl, attr_type, attr_d, attr_ist);
     }
 
     uint16_t tr;
     __asm__("str %0" : "=m"(tr));
-    printf("%04x\n", tr);
+    printk("%04x\n", tr);
 }
 
 #define PIC0_ICW1		0x0020
@@ -245,7 +259,7 @@ extern "C" unsigned long MyMain(struct BootParam *param)
 
     if (IsError(err))
     {
-        printf("SetIDTEntry: %d\n", err);
+        printk("SetIDTEntry: %d\n", err);
     }
 
     DebugShell shell(cons);
@@ -268,7 +282,7 @@ extern "C" unsigned long MyMain(struct BootParam *param)
     }
     for (size_t i = 0; i < 32; ++i)
     {
-        printf("%016lx\n", buf[i]);
+        printk("%016lx\n", buf[i]);
     }
 
     while (true)
@@ -276,10 +290,10 @@ extern "C" unsigned long MyMain(struct BootParam *param)
         __asm__("cli;hlt");
     }
 
-    printf("printing frame array: %016lx\n", reinterpret_cast<uintptr_t>(memory::frame_array));
+    printk("printing frame array: %016lx\n", reinterpret_cast<uintptr_t>(memory::frame_array));
     for (size_t i = 0; i < memory::frame_array_size; ++i)
     {
-        printf("%3lu: %016lx Type=%u Free=%u\n",
+        printk("%3lu: %016lx Type=%u Free=%u\n",
             i, memory::kHostPageSize * i,
             memory::frame_array[i].flags.Type(),
             memory::frame_array[i].flags.Used() ? 0 : 1);
@@ -299,7 +313,7 @@ extern "C" unsigned long MyMain(struct BootParam *param)
             auto key = keydat.Front();
             keydat.Pop();
             keydat_mutex.Unlock();
-            //printf("%2x (lost keys %u)\n", key, num_lostkey);
+            //printk("%2x (lost keys %u)\n", key, num_lostkey);
             if (key < 0x80)
             {
                 // press

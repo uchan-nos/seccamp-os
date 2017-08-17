@@ -122,11 +122,11 @@ namespace bitnos::memory
         const auto physical_addr_end =
             last_free_desc->PhysicalStart + last_free_desc->NumberOfPages * kUefiPageSize;
 
-        printf("last_free_desc index = %lu, %016lx - %016lx, type=%u\n",
+        printk("last_free_desc index = %lu, %016lx - %016lx, type=%u\n",
             num_descs - 1, last_free_desc->PhysicalStart, physical_addr_end, last_free_desc->Type);
 
         frame_array_size = physical_addr_end / kHostPageSize;
-        printf("frame_array_size %lu\n", frame_array_size);
+        printk("frame_array_size %lu\n", frame_array_size);
 
         // find the first free area which is large enough to contain an array of pages.
         EFI_MEMORY_DESCRIPTOR* desc_for_array = nullptr;
