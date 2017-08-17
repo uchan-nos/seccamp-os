@@ -1,6 +1,7 @@
-CPPFLAGS = -I${NEWLIB_INCDIR} -nostdlib \
-        -I${EDK2_ROOT}/MdePkg/Include \
-        -I${EDK2_ROOT}/MdePkg/Include/X64
+UEFI_INC = -I${EDK2_ROOT}/MdePkg/Include \
+	-I${EDK2_ROOT}/MdePkg/Include/X64
+
+CPPFLAGS = -I${NEWLIB_INCDIR} $$(UEFI_INC) -nostdlib
 
 CFLAGS = -g --target=x86_64-none-elf -mno-red-zone -Wall -masm=intel
 CXXFLAGS = $$(CFLAGS) -std=c++1z -fno-rtti -fno-exceptions

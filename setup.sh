@@ -3,7 +3,7 @@
 #==========
 # variables
 #==========
-export EDK2_ROOT=${EDK2_ROOT:-${HOME}/workspace/github.com/tianocore/edk2}
+export EDK2_ROOT=${EDK2_ROOT:-${HOME}/workspace/github.com/uchan-nos/edk2}
 export EDK2_RELEASE=${EDK2_RELEASE:-RELEASE}
 export EDK2_TOOLCHAIN=${EDK2_TOOLCHAIN:-GCC5}
 

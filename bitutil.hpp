@@ -6,6 +6,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <limits.h>
 
 namespace bitutil
 {
@@ -24,6 +25,20 @@ namespace bitutil
         return result;
     }
 
+    template <typename T>
+    constexpr int BitScanForwardConst(T value)
+    {
+        int i = 0;
+        for (; i < sizeof(T) * CHAR_BIT; ++i)
+        {
+            if (value & (static_cast<T>(1) << i))
+            {
+                return i;
+            }
+        }
+        return -1;
+    }
+
     /** ClearBits clears the specified bits of value and returns the result.
      *
      * example: ClearBits(0xdeadbeaf, 0xf0f0) == 0xdead0e0f
@@ -37,6 +52,12 @@ namespace bitutil
     constexpr T ClearBits(T value, U bits_cleared)
     {
         return value & ~static_cast<T>(bits_cleared);
+    }
+
+    template <typename T, typename U>
+    constexpr T GetValueWithMask(T value, U mask)
+    {
+        return (value & mask) >> BitScanForwardConst(mask);
     }
 
     /** ReadByByte reads/writes a multi-bytes object from/to a byte array.

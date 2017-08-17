@@ -15,6 +15,7 @@ int errno;
 #include "asmfunc.h"
 #include "bootparam.h"
 #include "memory.hpp"
+#include "memory_op.hpp"
 #include "graphics.hpp"
 #include "debug_console.hpp"
 #include "desctable.hpp"
@@ -249,7 +250,7 @@ extern "C" unsigned long MyMain(struct BootParam *param)
 
     DebugShell shell(cons);
 
-    const char* auto_cmd = "lspci\nlspci 00:04.00\nxhci\n";
+    const char* auto_cmd = "pages\n";
     for (int i = 0; auto_cmd[i]; ++i)
     {
         shell.PutChar(auto_cmd[i]);
@@ -257,6 +258,32 @@ extern "C" unsigned long MyMain(struct BootParam *param)
 
     init_pic();
     init_keyboard();
+
+    //memory::Init();
+
+    volatile uint64_t* buf = reinterpret_cast<uint64_t*>(0);
+    for (size_t i = 0; i < 32; ++i)
+    {
+        buf[i] = 0xa5a5a5a5deadbeef;
+    }
+    for (size_t i = 0; i < 32; ++i)
+    {
+        printf("%016lx\n", buf[i]);
+    }
+
+    while (true)
+    {
+        __asm__("cli;hlt");
+    }
+
+    printf("printing frame array: %016lx\n", reinterpret_cast<uintptr_t>(memory::frame_array));
+    for (size_t i = 0; i < memory::frame_array_size; ++i)
+    {
+        printf("%3lu: %016lx Type=%u Free=%u\n",
+            i, memory::kHostPageSize * i,
+            memory::frame_array[i].flags.Type(),
+            memory::frame_array[i].flags.Used() ? 0 : 1);
+    }
 
     bool shifted = false;
     for (;;) {

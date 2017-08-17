@@ -11,6 +11,7 @@ namespace bitnos::errorcode
     const Type kEmpty = 3;
     const Type kNotImplemented = 4;
     const Type kInvalidValue = 5;
+    const Type kNoEnoughMemory = 6;
 }
 
 namespace bitnos

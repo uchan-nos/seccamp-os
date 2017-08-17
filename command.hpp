@@ -13,7 +13,7 @@ namespace bitnos::command
         FuncType* func_ptr;
     };
 
-    extern Command table[4];
+    extern Command table[5];
 }
 
 #endif // COMMAND_HPP_

@@ -130,6 +130,28 @@ namespace
         }
     }
 
+    const char* GetMemoryType(EFI_MEMORY_TYPE Type) {
+        switch (Type) {
+            case EfiReservedMemoryType: return "EfiReservedMemoryType";
+            case EfiLoaderCode: return "EfiLoaderCode";
+            case EfiLoaderData: return "EfiLoaderData";
+            case EfiBootServicesCode: return "EfiBootServicesCode";
+            case EfiBootServicesData: return "EfiBootServicesData";
+            case EfiRuntimeServicesCode: return "EfiRuntimeServicesCode";
+            case EfiRuntimeServicesData: return "EfiRuntimeServicesData";
+            case EfiConventionalMemory: return "EfiConventionalMemory";
+            case EfiUnusableMemory: return "EfiUnusableMemory";
+            case EfiACPIReclaimMemory: return "EfiACPIReclaimMemory";
+            case EfiACPIMemoryNVS: return "EfiACPIMemoryNVS";
+            case EfiMemoryMappedIO: return "EfiMemoryMappedIO";
+            case EfiMemoryMappedIOPortSpace: return "EfiMemoryMappedIOPortSpace";
+            case EfiPalCode: return "EfiPalCode";
+            case EfiPersistentMemory: return "EfiPersistentMemory";
+            case EfiMaxMemoryType: return "EfiMaxMemoryType";
+            default: return "InvalidMemoryType";
+        }
+    }
+
     void Mmap(int argc, char* argv[])
     {
         const auto base =
@@ -137,11 +159,25 @@ namespace
         const auto mmap_size = kernel_boot_param->memory_map_size;
         const auto desc_size = kernel_boot_param->memory_descriptor_size;
 
+        decltype(EFI_MEMORY_DESCRIPTOR::PhysicalStart) last_addr = 0;
         for (size_t it = 0; it < mmap_size; it += desc_size)
         {
             auto desc = reinterpret_cast<EFI_MEMORY_DESCRIPTOR*>(base + it);
-            printf("%08llx: %05llx pages\n",
-                desc->PhysicalStart, desc->NumberOfPages);
+
+            const bool free = desc->Type == EfiBootServicesCode
+                || desc->Type == EfiBootServicesData
+                || desc->Type == EfiConventionalMemory;
+
+            printf("%c %08lx - %08lx: %05lx pages %s (%s)\n",
+                last_addr > 0 && last_addr == desc->PhysicalStart ? '*' : ' ',
+                desc->PhysicalStart,
+                desc->PhysicalStart + desc->NumberOfPages * 4096 - 1,
+                desc->NumberOfPages,
+                free ? "Free" : "    ",
+                GetMemoryType(static_cast<EFI_MEMORY_TYPE>(desc->Type))
+                );
+
+            last_addr = desc->PhysicalStart + desc->NumberOfPages * 4096;
         }
     }
 
@@ -409,14 +445,46 @@ namespace
         }
     */
     }
+
+    alignas(0x1000) uint64_t page_dir_ptr_table[512];
+    alignas(0x1000) uint64_t page_directory[512];
+
+    void Pages(int argc, char* argv[])
+    {
+        memset(page_dir_ptr_table, 0, sizeof(page_dir_ptr_table));
+        memset(page_directory, 0, sizeof(page_directory));
+
+        uint64_t cr3;
+        __asm__("mov %%cr3, %0\n\t"
+                : "=r"(cr3));
+        printf("CR3=%016lx\n", cr3);
+
+        const uint32_t* addr = reinterpret_cast<uint32_t*>(0x7e60000u);
+        const uint32_t* addr_virt = reinterpret_cast<uint32_t*>(0xfffff00000060000lu);
+        printf("%08x\n", *addr);
+        //printf("%08x\n", *addr_virt);
+
+        uint64_t* pml4 = reinterpret_cast<uint64_t*>(bitutil::ClearBits(cr3, 0xfffu));
+        page_dir_ptr_table[0] = reinterpret_cast<uint64_t>(page_directory) | 0x03u;
+        page_directory[0] = bitutil::ClearBits(0x7e60000u, 0x1fffffu) | 0x83u;
+
+        pml4[0x1e0] = reinterpret_cast<uint64_t>(page_dir_ptr_table) | 0x03u;
+
+        printf("%08x\n", *addr);
+        printf("accessing to page\n");
+
+        printf("%08x\n", *addr_virt);
+        printf("successed!\n");
+    }
 }
 
 namespace bitnos::command
 {
-    Command table[4] = {
+    Command table[5] = {
         {"echo", Echo},
         {"lspci", Lspci},
         {"mmap", Mmap},
         {"xhci", Xhci},
+        {"pages", Pages},
     };
 }

@@ -1,14 +1,14 @@
 include ../Makefile.inc
 
-CPPFLAGS = -I../
-CXXFLAGS = -g -Wall -std=c++1z -masm=intel
+CPPFLAGS := -I../ $(UEFI_INC)
+CXXFLAGS := -g -Wall -std=c++1z -masm=intel
 
-OBJS = ../asmfunc.o test_queue.o test_mutex.o test_bitutil.o test_xhci.o
+OBJS = ../asmfunc.o ../memory.o test_queue.o test_mutex.o test_bitutil.o test_xhci.o test_memory.o
 
 .PHONY: all
 all: test.run
 
-test.run: $(OBJS)
+test.run: $(OBJS) depends
 	$(CXX) -o test.run $(OBJS) -lCppUTest -lCppUTestExt -lpthread
 
 .PHONY: run

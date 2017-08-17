@@ -1,5 +1,6 @@
 #include <CppUTest/CommandLineTestRunner.h>
 #include "xhci.hpp"
+#include <string.h>
 
 TEST_GROUP(SlotContext) {
     bitnos::xhci::SlotContext *context;
@@ -7,6 +8,7 @@ TEST_GROUP(SlotContext) {
     TEST_SETUP()
     {
         context = new bitnos::xhci::SlotContext;
+        memset(context, 0, sizeof(bitnos::xhci::SlotContext));
     }
 
     TEST_TEARDOWN()

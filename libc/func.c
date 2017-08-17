@@ -1,3 +1,7 @@
+#include <errno.h>
+#undef errno
+extern int errno;
+
 #include <stddef.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -25,7 +29,8 @@ void *memset(void *s, int c, size_t n)
 
 caddr_t sbrk(int incr)
 {
-    return 0;
+    errno = ENOMEM;
+    return -1;
 }
 
 int close(int file)

@@ -1,7 +1,7 @@
 include Makefile.inc
 
 OBJS = main.o hankaku.o asmfunc.o inthandler.o libc/func.o \
-       graphics.o debug_console.o memory.o desctable.o pci.o \
+       graphics.o debug_console.o memory.o memory_op.o desctable.o pci.o \
        command.o xhci.o
 
 .PHONY: all
@@ -11,7 +11,7 @@ all:
 hankaku.o: hankaku.bin
 	$(OBJCOPY) -I binary -O elf64-x86-64 -B i386 $< $@
 
-kernel.elf: $(OBJS) Makefile
+kernel.elf: $(OBJS) depends Makefile
 	$(LD) -Tkernel.ld -z max-page-size=0x1000 \
 	    -Map kernel.map -o kernel.elf $(OBJS) -lc
 
@@ -22,8 +22,9 @@ run: all
 	    -drive if=pflash,format=raw,readonly,file=$(OVMF_CODE) \
 	    -drive if=pflash,format=raw,file=$(OVMF_VARS) \
 	    -drive if=ide,file=fat:rw:$(DISKIMAGE),index=0,media=disk \
-	    -device nec-usb-xhci,id=xhci -device usb-kbd $(QEMU_OPT)
+	    -device nec-usb-xhci,id=xhci
 
+# -device usb-kbd $(QEMU_OPT)
 # -device usb-mouse
 
 .PHONY: clean
