@@ -1,7 +1,7 @@
 #include "memory.hpp"
 
-#include <stdio.h>
 #include "bootparam.h"
+#include "printk.hpp"
 
 extern BootParam* kernel_boot_param;
 

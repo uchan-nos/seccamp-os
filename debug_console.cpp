@@ -1,9 +1,9 @@
 #include "debug_console.hpp"
 
-#include <stdio.h>
 #include <string.h>
 
 #include "command.hpp"
+#include "printk.hpp"
 
 namespace bitnos
 {

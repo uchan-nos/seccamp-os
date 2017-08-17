@@ -9,6 +9,7 @@
 #include "xhci_trb.hpp"
 #include "xhci_er.hpp"
 #include "bitutil.hpp"
+#include "printk.hpp"
 
 extern BootParam* kernel_boot_param;
 
@@ -20,14 +21,13 @@ namespace
     {
         if (argc > 1)
         {
-            fputs(argv[1], stdout);
+            printk("%s\n", argv[1]);
         }
         for (int i = 2; i < argc; ++i)
         {
-            fputc(' ', stdout);
-            fputs(argv[i], stdout);
+            printk(" %s\n", argv[i]);
         }
-        fputc('\n', stdout);
+        printk("\n");
     }
 
     pci::ScanCallbackParam pci_devices[32];
@@ -268,9 +268,9 @@ namespace
         for (auto& port_reg : xhc.PortRegSets())
         {
             const auto port_status = port_reg.PORTSC.Read();
-            putchar('0' + (port_status & 1u) + 2 * ((port_status >> 17) & 1));
+            printk("%c", '0' + (port_status & 1u) + 2 * ((port_status >> 17) & 1));
         }
-        putchar('\n');
+        printk("\n");
 
         printk("SEGM TABLE Base=%016lx Size=%lu\n",
             reinterpret_cast<uint64_t>(er_mgr.SegmentTable()),

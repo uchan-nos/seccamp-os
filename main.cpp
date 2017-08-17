@@ -12,6 +12,7 @@ int errno;
 #include <stddef.h>
 #include <stdio.h>
 
+#include "printk.hpp"
 #include "asmfunc.h"
 #include "bootparam.h"
 #include "memory.hpp"
@@ -48,14 +49,14 @@ extern "C" int write(int file, char *ptr, int len)
     return len;
 }
 
-extern "C" int printk(const char* format, ...)
+int printk(const char* format, ...)
 {
     va_list ap;
     int result;
     char s[1024];
 
     va_start(ap, format);
-    result = vsprintk(s, format, ap);
+    result = vsprintf(s, format, ap);
     write(1, s, result);
     va_end(ap);
 
