@@ -219,6 +219,8 @@ BootParam* kernel_boot_param;
 
 extern "C" unsigned long MyMain(struct BootParam *param)
 {
+    asm("movq %%rsp, %0" : "=m"(memory::initial_stack_pointer));
+
     kernel_boot_param = param;
 
     struct GraphicMode *mode = param->graphic_mode;
@@ -250,6 +252,8 @@ extern "C" unsigned long MyMain(struct BootParam *param)
         }
     }
 
+    printk("initial stack pointer: %016lx\n", memory::initial_stack_pointer);
+
     auto idtr = GetIDTR();
     auto err = SetIDTEntry(
         idtr,
@@ -274,22 +278,7 @@ extern "C" unsigned long MyMain(struct BootParam *param)
     init_pic();
     init_keyboard();
 
-    //memory::Init();
-
-    volatile uint64_t* buf = reinterpret_cast<uint64_t*>(0);
-    for (size_t i = 0; i < 32; ++i)
-    {
-        buf[i] = 0xa5a5a5a5deadbeef;
-    }
-    for (size_t i = 0; i < 32; ++i)
-    {
-        printk("%016lx\n", buf[i]);
-    }
-
-    while (true)
-    {
-        __asm__("cli;hlt");
-    }
+    memory::Init();
 
     printk("printing frame array: %016lx\n", reinterpret_cast<uintptr_t>(memory::frame_array));
     for (size_t i = 0; i < memory::frame_array_size; ++i)

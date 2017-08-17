@@ -5,32 +5,11 @@
 
 extern BootParam* kernel_boot_param;
 
-namespace
-{
-    bool IsFree(UINT32 type)
-    {
-        return type == EfiBootServicesCode
-            || type == EfiBootServicesData
-            || type == EfiConventionalMemory;
-    };
-
-    using DescIterator = bitnos::memory::UefiMemoryDescriptorIterator;
-
-    auto GetPhysicalEnd(DescIterator desc_it)
-    {
-        return desc_it->PhysicalStart + bitnos::memory::kUefiPageSize * desc_it->NumberOfPages;
-    }
-
-    bool IsContiguous(DescIterator desc_prev, DescIterator desc_next)
-    {
-        return GetPhysicalEnd(desc_prev) == desc_next->PhysicalStart;
-    }
-}
-
 namespace bitnos::memory
 {
     PageFrame* frame_array;
     size_t frame_array_size; // the number of element
+    uint64_t initial_stack_pointer;
 
     void SetFrameArray(
         PageFrame* frame_array,
@@ -55,29 +34,33 @@ namespace bitnos::memory
         for (size_t i = 0; i < frame_array_size; ++i)
         {
             frame_array[i].flags.SetUsed(true);
-            frame_array[i].flags.SetType(PageFrameFlags::kType1G);
+            frame_array[i].flags.SetType(PageFrameFlags::kType2M);
         }
-        return;
 
         for (auto desc_it = desc_begin; desc_it != desc_end; ++desc_it)
         {
             if (desc_prev != desc_end)
             {
                 if (processing_contiguous_free_area &&
-                    !(IsContiguous(desc_prev, desc_it) && IsFree(desc_it->Type)))
+                    !(IsContiguous(desc_prev, desc_it) && IsFree(desc_it)))
                 {
                     processing_contiguous_free_area = false;
                     MarkFreeArea(contiguous_free_area_start, GetPhysicalEnd(desc_prev));
                 }
             }
 
-            if (IsFree(desc_it->Type))
+            if (IsFree(desc_it))
             {
                 if (!processing_contiguous_free_area)
                 {
                     processing_contiguous_free_area = true;
                     contiguous_free_area_start = desc_it->PhysicalStart;
                 }
+            }
+
+            if (desc_it->PhysicalStart <= initial_stack_pointer
+                && initial_stack_pointer < GetPhysicalEnd(desc_it))
+            {
             }
 
             desc_prev = desc_it;
@@ -107,7 +90,7 @@ namespace bitnos::memory
         auto last_free_desc = desc_end;
         for (auto desc_it = desc_begin; desc_it != desc_end; ++desc_it)
         {
-            if (IsFree(desc_it->Type))
+            if (IsFree(desc_it))
             {
                 last_free_desc = desc_it;
             }
@@ -122,17 +105,13 @@ namespace bitnos::memory
         const auto physical_addr_end =
             last_free_desc->PhysicalStart + last_free_desc->NumberOfPages * kUefiPageSize;
 
-        printk("last_free_desc index = %lu, %016lx - %016lx, type=%u\n",
-            num_descs - 1, last_free_desc->PhysicalStart, physical_addr_end, last_free_desc->Type);
-
-        frame_array_size = physical_addr_end / kHostPageSize;
-        printk("frame_array_size %lu\n", frame_array_size);
+        frame_array_size = (physical_addr_end + kHostPageSize - 1) / kHostPageSize;
 
         // find the first free area which is large enough to contain an array of pages.
         EFI_MEMORY_DESCRIPTOR* desc_for_array = nullptr;
         for (auto it = desc_begin; it != desc_end; ++it)
         {
-            if (it->PhysicalStart > 0 && IsFree(it->Type) &&
+            if (it->PhysicalStart > 0 && IsFree(it) &&
                 sizeof(PageFrame) * frame_array_size <= it->NumberOfPages * kUefiPageSize)
             {
                 desc_for_array = &*it;

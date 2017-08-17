@@ -12,6 +12,8 @@ using namespace std;
 
 BootParam* kernel_boot_param;
 
+
+
 TEST_GROUP(PageFrame) {
     TEST_SETUP()
     {
@@ -62,6 +64,17 @@ void SetFrameArray(PageFrame (&frame_array)[N], EFI_MEMORY_DESCRIPTOR (&mem_map)
     SetFrameArray(frame_array, N, desc_begin, desc_end);
 }
 
+TEST(PageFrame, IsFree)
+{
+    auto desc = MakeDesc(EfiConventionalMemory, 0_KiB, 4_KiB);
+
+    initial_stack_pointer = 10;
+    CHECK_FALSE(IsFree(&desc));
+
+    initial_stack_pointer = 10000;
+    CHECK_TRUE(IsFree(&desc));
+}
+
 TEST(PageFrame, SetFrameArray1)
 {
     PageFrame frame_array[4];
@@ -69,6 +82,7 @@ TEST(PageFrame, SetFrameArray1)
     EFI_MEMORY_DESCRIPTOR mem_map[]{
         MakeDesc(EfiConventionalMemory, 0_MiB, 10_MiB),
     };
+    initial_stack_pointer = 16_MiB;
     SetFrameArray(frame_array, mem_map);
 
     CHECK_FALSE(frame_array[0].flags.Used());
@@ -85,6 +99,7 @@ TEST(PageFrame, SetFrameArray2)
         MakeDesc(EfiConventionalMemory, 3_MiB, 6_MiB),
         MakeDesc(EfiConventionalMemory, 7_MiB, 11_MiB),
     };
+    initial_stack_pointer = 16_MiB;
     SetFrameArray(frame_array, mem_map);
 
     CHECK_TRUE(frame_array[0].flags.Used());
@@ -102,10 +117,18 @@ TEST(PageFrame, SetFrameArray3)
         MakeDesc(EfiConventionalMemory, 0_MiB, 1_MiB),
         MakeDesc(EfiReservedMemoryType, 1_MiB, 2_MiB),
         MakeDesc(EfiConventionalMemory, 2_MiB, 3_MiB),
-        MakeDesc(EfiConventionalMemory, 3_MiB, 4_MiB),
+        MakeDesc(EfiBootServicesData, 3_MiB, 4_MiB),
     };
+
+    initial_stack_pointer = 16_MiB;
     SetFrameArray(frame_array, mem_map);
 
     CHECK_TRUE(frame_array[0].flags.Used());
     CHECK_FALSE(frame_array[1].flags.Used());
+
+    initial_stack_pointer = 4_MiB - 100_KiB;
+    SetFrameArray(frame_array, mem_map);
+
+    CHECK_TRUE(frame_array[0].flags.Used());
+    CHECK_TRUE(frame_array[1].flags.Used());
 }

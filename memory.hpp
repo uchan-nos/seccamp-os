@@ -48,6 +48,7 @@ namespace bitnos::memory
 
     extern PageFrame* frame_array;
     extern size_t frame_array_size; // the number of element
+    extern uint64_t initial_stack_pointer;
 
     const unsigned int kUefiPageSize = 0x1000;
     const unsigned int kHostPageSize = 0x200000;
@@ -94,6 +95,31 @@ namespace bitnos::memory
         size_t frame_array_size,
         UefiMemoryDescriptorIterator desc_begin,
         UefiMemoryDescriptorIterator desc_end);
+
+    template <typename DescPtr>
+    auto GetPhysicalEnd(DescPtr desc)
+    {
+        return desc->PhysicalStart + kUefiPageSize * desc->NumberOfPages;
+    }
+
+    template <typename DescPtr>
+    bool IsContiguous(DescPtr desc_prev, DescPtr desc_next)
+    {
+        return GetPhysicalEnd(desc_prev) == desc_next->PhysicalStart;
+    }
+
+    template <typename DescPtr>
+    bool IsFree(DescPtr desc)
+    {
+        const bool is_stack_area =
+            desc->PhysicalStart <= initial_stack_pointer &&
+            initial_stack_pointer < GetPhysicalEnd(desc);
+        const bool is_free_type =
+            desc->Type == EfiBootServicesCode ||
+            desc->Type == EfiBootServicesData ||
+            desc->Type == EfiConventionalMemory;
+        return !is_stack_area && is_free_type;
+    }
 
     Error Init();
 }
