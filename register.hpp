@@ -8,7 +8,7 @@ namespace bitnos
     template <typename T>
     class MemMapRegister
     {
-        T value_;
+        volatile T value_;
 
     public:
         T Read() const
@@ -27,11 +27,11 @@ namespace bitnos
 
     class MemMapRegister64Access32
     {
-        uint64_t value_;
+        volatile uint64_t value_;
 
         uint64_t Read32(int i) const
         {
-            auto p = reinterpret_cast<const uint32_t*>(&value_);
+            auto p = reinterpret_cast<const volatile uint32_t*>(&value_);
             return static_cast<uint64_t>(p[i]);
         }
 
@@ -43,7 +43,7 @@ namespace bitnos
 
         void Write(uint64_t value)
         {
-            uint32_t* p = reinterpret_cast<uint32_t*>(&value_);
+            auto p = reinterpret_cast<volatile uint32_t*>(&value_);
             p[0] = value & 0xffffffffu;
             p[1] = value >> 32;
         }

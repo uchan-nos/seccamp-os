@@ -2,7 +2,7 @@ include Makefile.inc
 
 OBJS = main.o hankaku.o asmfunc.o inthandler.o libc/func.o \
        graphics.o debug_console.o memory.o memory_op.o desctable.o pci.o \
-       command.o xhci.o
+       command.o xhci.o xhci_trb.o
 
 .PHONY: all
 all:

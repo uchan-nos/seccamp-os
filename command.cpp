@@ -190,7 +190,6 @@ namespace
                     pci_devices[num_pci_devices++] = param;
                 });
         }
-        printk("number of pci devices: %lu\n", num_pci_devices);
 
         size_t xhci_dev_index = 0;
         for (xhci_dev_index = 0; xhci_dev_index < num_pci_devices; ++xhci_dev_index)
@@ -198,8 +197,6 @@ namespace
             const auto& p = pci_devices[xhci_dev_index];
             if (p.base_class == 0x0c && p.sub_class == 0x03 && p.interface == 0x30)
             {
-                printk("found an xHCI device at %02x:%02x.%02x\n",
-                    p.bus, p.dev, p.func);
                 break;
             }
         }
@@ -209,9 +206,11 @@ namespace
             printk("no xHCI device\n");
             return;
         }
-        printk("xHCI device: %lu\n", xhci_dev_index);
 
         const auto& dev_param = pci_devices[xhci_dev_index];
+        printk("xHCI device: index = %lu, addr = %02x:%02x.%02x\n",
+            xhci_dev_index, dev_param.bus, dev_param.dev, dev_param.func);
+
         pci::NormalDevice xhci_dev(dev_param.bus, dev_param.dev, dev_param.func);
         const auto bar = pci::ReadBar(xhci_dev, 0);
         const auto mmio_base = bitutil::ClearBits(bar.value, 0xf);
@@ -236,7 +235,7 @@ namespace
 
         alignas(64) xhci::TRB cr_buf[8];
         size_t cr_enqueue_ptr = 0;
-        unsigned char cr_cycle_bit = 1;
+        bool cr_cycle_bit = 1;
         memset(cr_buf, 0, sizeof(cr_buf));
         op_reg.CRCR.Write(reinterpret_cast<uint64_t>(&cr_buf[0]) | cr_cycle_bit);
         printk("Write to CRCR %016lx\n",
@@ -262,6 +261,7 @@ namespace
             auto& trb = er_mgr.Front();
             printk("%08x %08x %08x %08x (type=%u)\n",
                 trb.dwords[0], trb.dwords[1], trb.dwords[2], trb.dwords[3], trb.bits.trb_type);
+            er_mgr.Pop();
         }
 
         xhc.Initialize();
@@ -303,6 +303,7 @@ namespace
                 continue;
             }
 
+            /*
             const auto& sc = dcaddr->slot_context;
             printk("DevCtx %u: Hub=%d, #EP=%d, slot state %02x, usb dev addr %02x\n",
                 slot_id, sc.bits.hub, sc.bits.context_entries,
@@ -315,61 +316,32 @@ namespace
                     ep_index, ep.bits.ep_state, ep.bits.ep_type,
                     ep.bits.max_burst_size, ep.bits.max_packet_size);
             }
+            */
 
-            xhci::InputContext input_context;
-            memset(&input_context, 0, sizeof(input_context));
-            const unsigned int ep_enabling = 1;
-            input_context.input_control_context.add_context_flags
-                |= (1 << (2 * ep_enabling));
-            input_context.ep_contexts[ep_enabling] = dcaddr->ep_contexts[ep_enabling];
+            xhci::InputContext input_context{};
+            // DCI 1 -> EP Context 0 BiDir
+            input_context.EnableEndpoint(1, false, dcaddr->ep_contexts[1]);
 
-            xhci::ConfigureEndpointCommandTRB cmd{};
-            cmd.bits.cycle_bit = cr_cycle_bit;
-            cmd.bits.input_context_pointer = (
-                reinterpret_cast<uint64_t>(&input_context) >> 4);
-            cmd.bits.trb_type = 12;
-            cmd.bits.slot_id = slot_id;
+            xhci::ConfigureEndpointCommandTRB cmd{
+                input_context, cr_cycle_bit, static_cast<uint8_t>(slot_id)};
 
             for (int i = 0; i < 4; ++i)
             {
                 cr_buf[cr_buf_index].dwords[i] = cmd.dwords[i];
             }
 
-            if (er_mgr.HasFront())
-            {
-                printk("ER has at least one element\n");
-            }
-            else
-            {
-                printk("ER has no element\n");
-            }
-
             while (er_mgr.HasFront())
             {
-                auto& trb = er_mgr.Front();
-                printk("%08x %08x %08x %08x (type=%u)\n",
-                    trb.dwords[0], trb.dwords[1], trb.dwords[2], trb.dwords[3], trb.bits.trb_type);
                 er_mgr.Pop();
             }
 
-            printk("Put a command to %p, C = %lu\n",
-                    cr_buf[cr_buf_index].dwords, cr_buf[cr_buf_index].dwords[3] & 1u);
-
-            printk("writing doorbell. R/S=%u, CRR=%u\n",
-                op_reg.USBCMD.Read() & 1u, (op_reg.CRCR.Read() >> 3) & 1u);
-
             doorbell_registers[0].DB.Write(0);
-
-            printk("doorbell written. R/S=%u, CRR=%u\n",
-                op_reg.USBCMD.Read() & 1u, (op_reg.CRCR.Read() >> 3) & 1u);
 
             while ((op_reg.CRCR.Read() & 8) == 0);
 
-            printk("CRCR.CRR got to be 1. R/S=%u, CRR=%u\n",
-                op_reg.USBCMD.Read() & 1u, (op_reg.CRCR.Read() >> 3) & 1u);
-
-            printk("waiting completion event (c=%d)\n",
-                er_mgr.Front().bits.cycle_bit);
+            //printk("waiting completion event (c=%d)\n",
+            //    er_mgr.Front().bits.cycle_bit);
+            //printk("h\n");
 
             while (!er_mgr.HasFront());
 

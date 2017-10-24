@@ -1,5 +1,9 @@
 #pragma once
 
+#include <stdint.h>
+
+#include "xhci_ctx.hpp"
+
 namespace bitnos::xhci
 {
     union TRB
@@ -34,6 +38,9 @@ namespace bitnos::xhci
             uint32_t : 8;
             uint32_t slot_id : 8;
         } bits;
+
+        ConfigureEndpointCommandTRB(
+            const InputContext& input_context, bool cycle_bit, uint8_t slot_id);
     };
 
     union CommandCompletionEventTRB
