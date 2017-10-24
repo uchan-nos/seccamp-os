@@ -11,9 +11,15 @@ all:
 hankaku.o: hankaku.bin
 	$(OBJCOPY) -I binary -O elf64-x86-64 -B i386 $< $@
 
+#kernel.elf: $(OBJS) depends Makefile
+#	$(LD) -Tkernel.ld -z max-page-size=0x1000 \
+#	    -Map kernel.map -o kernel.elf $(OBJS) -lc
+
+CFLAGS := $(CFLAGS) -fPIE
+CXXFLAGS := $(CXXFLAGS) -fPIE
 kernel.elf: $(OBJS) depends Makefile
 	$(LD) -Tkernel.ld -z max-page-size=0x1000 \
-	    -Map kernel.map -o kernel.elf $(OBJS) -lc
+	    -Map kernel.map -o kernel.elf $(OBJS) -lc -pie
 
 .PHONY: run
 run: all
