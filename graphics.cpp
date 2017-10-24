@@ -9,6 +9,22 @@
 namespace bitnos::graphics
 {
 
+    void PixelWriter::DrawRect(const Point& position, const RectSize& size, const Color& color)
+    {
+        auto PutPixel = [&](const Point& diff)
+        {
+            this->Write(position + diff, color);
+        };
+
+        for (int dy = 0; dy < size.height; dy++)
+        {
+            for (int dx = 0; dx < size.width; dx++)
+            {
+                PutPixel({dx, dy});
+            }
+        }
+    }
+
     void PixelWriterRedGreenBlueReserved8BitPerColor::Write(
         const Point& position, const Color& color)
     {
@@ -18,6 +34,23 @@ namespace bitnos::graphics
         p[2] = color.b;
     }
 
+    void PixelWriterRedGreenBlueReserved8BitPerColor::DrawRect(
+        const Point& position, const RectSize& size, const Color& color)
+    {
+        auto PutPixel = [&](const Point& diff)
+        {
+            PixelWriterRedGreenBlueReserved8BitPerColor::Write(position + diff, color);
+        };
+
+        for (int dy = 0; dy < size.height; dy++)
+        {
+            for (int dx = 0; dx < size.width; dx++)
+            {
+                PutPixel({dx, dy});
+            }
+        }
+    }
+
     void PixelWriterBlueGreenRedReserved8BitPerColor::Write(
         const Point& position, const Color& color)
     {
@@ -25,6 +58,23 @@ namespace bitnos::graphics
         p[0] = color.b;
         p[1] = color.g;
         p[2] = color.r;
+    }
+
+    void PixelWriterBlueGreenRedReserved8BitPerColor::DrawRect(
+        const Point& position, const RectSize& size, const Color& color)
+    {
+        auto PutPixel = [&](const Point& diff)
+        {
+            PixelWriterBlueGreenRedReserved8BitPerColor::Write(position + diff, color);
+        };
+
+        for (int dy = 0; dy < size.height; dy++)
+        {
+            for (int dx = 0; dx < size.width; dx++)
+            {
+                PutPixel({dx, dy});
+            }
+        }
     }
 
     void DrawAscii(PixelWriter& w, const Point& position, char ch)

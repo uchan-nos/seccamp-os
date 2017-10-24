@@ -190,6 +190,7 @@ namespace
                     pci_devices[num_pci_devices++] = param;
                 });
         }
+        printk("number of pci devices: %lu\n", num_pci_devices);
 
         size_t xhci_dev_index = 0;
         for (xhci_dev_index = 0; xhci_dev_index < num_pci_devices; ++xhci_dev_index)
@@ -208,6 +209,7 @@ namespace
             printk("no xHCI device\n");
             return;
         }
+        printk("xHCI device: %lu\n", xhci_dev_index);
 
         const auto& dev_param = pci_devices[xhci_dev_index];
         pci::NormalDevice xhci_dev(dev_param.bus, dev_param.dev, dev_param.func);
@@ -237,8 +239,8 @@ namespace
         unsigned char cr_cycle_bit = 1;
         memset(cr_buf, 0, sizeof(cr_buf));
         op_reg.CRCR.Write(reinterpret_cast<uint64_t>(&cr_buf[0]) | cr_cycle_bit);
-        printk("Write to CRCR cr_buf=%016lx\n", reinterpret_cast<uint64_t>(&cr_buf[0]));
-
+        printk("Write to CRCR %016lx\n",
+                reinterpret_cast<uint64_t>(&cr_buf[0]) | cr_cycle_bit);
 
         auto interrupter_reg_sets = xhc.InterrupterRegSets();
         auto doorbell_registers = xhc.DoorbellRegisters();
@@ -292,6 +294,7 @@ namespace
             ir0[6] | (static_cast<uint64_t>(ir0[7]) << 32));
 
         int slot_id = -1;
+        size_t cr_buf_index = 0;
         for (auto dcaddr : xhc.DeviceContextAddresses())
         {
             ++slot_id;
@@ -329,10 +332,28 @@ namespace
 
             for (int i = 0; i < 4; ++i)
             {
-                cr_buf[0].dwords[i] = cmd.dwords[i];
+                cr_buf[cr_buf_index].dwords[i] = cmd.dwords[i];
             }
 
-            printk("Put a command to %p\n", cr_buf[0].dwords);
+            if (er_mgr.HasFront())
+            {
+                printk("ER has at least one element\n");
+            }
+            else
+            {
+                printk("ER has no element\n");
+            }
+
+            while (er_mgr.HasFront())
+            {
+                auto& trb = er_mgr.Front();
+                printk("%08x %08x %08x %08x (type=%u)\n",
+                    trb.dwords[0], trb.dwords[1], trb.dwords[2], trb.dwords[3], trb.bits.trb_type);
+                er_mgr.Pop();
+            }
+
+            printk("Put a command to %p, C = %lu\n",
+                    cr_buf[cr_buf_index].dwords, cr_buf[cr_buf_index].dwords[3] & 1u);
 
             printk("writing doorbell. R/S=%u, CRR=%u\n",
                 op_reg.USBCMD.Read() & 1u, (op_reg.CRCR.Read() >> 3) & 1u);
@@ -343,8 +364,6 @@ namespace
                 op_reg.USBCMD.Read() & 1u, (op_reg.CRCR.Read() >> 3) & 1u);
 
             while ((op_reg.CRCR.Read() & 8) == 0);
-
-            printk("CRCR %016lx\n", op_reg.CRCR.Read());
 
             printk("CRCR.CRR got to be 1. R/S=%u, CRR=%u\n",
                 op_reg.USBCMD.Read() & 1u, (op_reg.CRCR.Read() >> 3) & 1u);
@@ -357,9 +376,12 @@ namespace
             auto trb = er_mgr.Front();
             er_mgr.Pop();
 
-            printk("completed! TRB type=%u ptr=%016lx\n",
-                trb.bits.trb_type, &trb);
+            printk("completed! TRB type=%u\n", trb.bits.trb_type);
 
+            cr_buf_index++;
+            if (cr_buf_index == 8) {
+                cr_buf_index = 0;
+            }
         }
 
         /*

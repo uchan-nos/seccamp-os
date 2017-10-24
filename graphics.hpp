@@ -69,6 +69,7 @@ namespace bitnos::graphics
         PixelWriter& operator =(PixelWriter&&) = delete;
 
         virtual void Write(const Point& position, const Color& color) = 0;
+        virtual void DrawRect(const Point& position, const RectSize& size, const Color& color);
     };
 
     class PixelWriterRedGreenBlueReserved8BitPerColor : public PixelWriter
@@ -79,6 +80,7 @@ namespace bitnos::graphics
         {}
 
         virtual void Write(const Point& position, const Color& color);
+        virtual void DrawRect(const Point& position, const RectSize& size, const Color& color);
     };
 
     class PixelWriterBlueGreenRedReserved8BitPerColor : public PixelWriter
@@ -89,6 +91,7 @@ namespace bitnos::graphics
         {}
 
         virtual void Write(const Point& position, const Color& color);
+        virtual void DrawRect(const Point& position, const RectSize& size, const Color& color);
     };
 
     /** @brief DrawAscii draws an ascii character to the given pixel writer.

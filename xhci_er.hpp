@@ -65,9 +65,7 @@ namespace bitnos::xhci::eventring
 
         void Initialize()
         {
-            // reload base address to reset the state of the ring
             const auto erstba = int_reg_set_.ERSTBA.Read();
-            int_reg_set_.ERSTBA.Write(erstba);
 
             producer_cycle_ = 1;
             erst_ = reinterpret_cast<SegmentTableEntry*>(
@@ -82,6 +80,9 @@ namespace bitnos::xhci::eventring
                 auto& segment = erst_[i];
                 memset(segment.begin(), 0, sizeof(TRB) * segment.Size());
             }
+
+            // reload base address to reset the state of the ring
+            int_reg_set_.ERSTBA.Write(erstba);
         }
 
         bool HasFront()
@@ -113,6 +114,5 @@ namespace bitnos::xhci::eventring
 
             WriteDequeuePointer(p);
         }
-
     };
 }

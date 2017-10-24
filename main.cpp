@@ -251,6 +251,12 @@ extern "C" unsigned long MyMain(struct BootParam *param)
             writer->Write({x, y}, {255, 255, 255, 0});
         }
     }
+    /*
+    writer->DrawRect(
+        {0, 0},
+        {mode->horizontal_resolution, mode->vertical_resolution},
+        {255, 255, 255, 0});
+        */
 
     printk("initial stack pointer: %016lx\n", memory::initial_stack_pointer);
 
@@ -269,7 +275,7 @@ extern "C" unsigned long MyMain(struct BootParam *param)
 
     DebugShell shell(cons);
 
-    const char* auto_cmd = "pages\n";
+    const char* auto_cmd = "xhci\n";
     for (int i = 0; auto_cmd[i]; ++i)
     {
         shell.PutChar(auto_cmd[i]);
