@@ -3,7 +3,7 @@ UEFI_INC = -I${EDK2_ROOT}/MdePkg/Include \
 
 CPPFLAGS = -I${NEWLIB_INCDIR} $$(UEFI_INC) -nostdlib
 
-CFLAGS = -g --target=x86_64-none-elf -mno-red-zone -Wall -masm=intel -O2
+CFLAGS = -g --target=x86_64-none-elf -mno-red-zone -Wall -masm=intel -O2 -mno-sse -mstack-alignment=16
 CXXFLAGS = $$(CFLAGS) -std=c++1z -fno-rtti -fno-exceptions
 
 MAKE    = make

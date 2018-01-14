@@ -177,6 +177,87 @@ ArrayQueue<uint8_t, 16> keydat;
 SpinLockMutex keydat_mutex;
 volatile unsigned int num_lostkey = 0;
 
+extern "C" void Inthandler00(void)
+{
+    printk("#DE\n");
+    for (;;) asm("hlt");
+}
+
+extern "C" void Inthandler01(void)
+{
+    printk("#DB\n");
+    for (;;) asm("hlt");
+}
+
+extern "C" void Inthandler03(void)
+{
+    printk("#BP\n");
+    for (;;) asm("hlt");
+}
+
+extern "C" void Inthandler04(void)
+{
+    printk("#OF\n");
+    for (;;) asm("hlt");
+}
+
+extern "C" void Inthandler05(void)
+{
+    printk("#BR\n");
+    for (;;) asm("hlt");
+}
+
+extern "C" void Inthandler06(void)
+{
+    printk("#UD\n");
+    for (;;) asm("hlt");
+}
+
+extern "C" void Inthandler07(void)
+{
+    printk("#NM\n");
+    for (;;) asm("hlt");
+}
+
+extern "C" void Inthandler08(void)
+{
+    printk("#DF\n");
+    for (;;) asm("hlt");
+}
+
+extern "C" void Inthandler0a(void)
+{
+    printk("#TS\n");
+    for (;;) asm("hlt");
+}
+
+extern "C" void Inthandler0b(void)
+{
+    printk("#NP\n");
+    for (;;) asm("hlt");
+}
+
+extern "C" void Inthandler0c(void)
+{
+    printk("#SS\n");
+    for (;;) asm("hlt");
+}
+
+__attribute__ ((no_caller_saved_registers))
+extern "C" void Inthandler0d(
+    uint64_t error_code, uint64_t rip, uint64_t cs, uint64_t rflags)
+{
+    printk("#GP Error Code %016lx, RIP %016lx, CS %04lx, RFLAGS %016lx\n",
+        error_code, rip, cs, rflags);
+    for (;;) asm("hlt");
+}
+
+extern "C" void Inthandler0e(void)
+{
+    printk("#PF\n");
+    for (;;) asm("hlt");
+}
+
 extern "C" void Inthandler21(void)
 {
     IoOut8(PIC0_OCW2, 0x61);	/* IRQ-01受付完了をPICに通知 */
@@ -220,6 +301,15 @@ BootParam* kernel_boot_param;
 extern "C" unsigned long MyMain(struct BootParam *param)
 {
     asm("movq %%rsp, %0" : "=m"(memory::initial_stack_pointer));
+
+    uint64_t tmp;
+    asm("movq %%cr0, %0" : "=r"(tmp));
+    tmp &= ~(1lu << 2);
+    tmp |= (1lu << 1);
+    asm("movq %0, %%cr0" : : "r"(tmp));
+    asm("movq %%cr4, %0" : "=r"(tmp));
+    tmp |= (1lu << 9) | (1lu << 10);
+    asm("movq %0, %%cr4" : : "r"(tmp));
 
     kernel_boot_param = param;
 
@@ -273,6 +363,30 @@ extern "C" unsigned long MyMain(struct BootParam *param)
         printk("SetIDTEntry: %d\n", err);
     }
 
+#define SET_IDT_ENTRY(num) \
+    SetIDTEntry( \
+        idtr, \
+        0x ## num, \
+        reinterpret_cast<uint64_t>(AsmInthandler ## num), \
+        MakeIDTAttr(1, 0, 14, 0), \
+        0x38);
+
+    SET_IDT_ENTRY(00);
+    SET_IDT_ENTRY(01);
+    SET_IDT_ENTRY(03);
+    SET_IDT_ENTRY(04);
+    SET_IDT_ENTRY(05);
+    SET_IDT_ENTRY(06);
+    SET_IDT_ENTRY(07);
+    SET_IDT_ENTRY(08);
+    SET_IDT_ENTRY(0a);
+    SET_IDT_ENTRY(0b);
+    SET_IDT_ENTRY(0c);
+    SET_IDT_ENTRY(0d);
+    SET_IDT_ENTRY(0e);
+
+#undef SET_IDT_ENTRY
+
     DebugShell shell(cons);
 
     const char* auto_cmd = "xhci\n";
@@ -286,6 +400,7 @@ extern "C" unsigned long MyMain(struct BootParam *param)
 
     memory::Init();
 
+    /*
     printk("printing frame array: %016lx\n", reinterpret_cast<uintptr_t>(memory::frame_array));
     for (size_t i = 0; i < memory::frame_array_size; ++i)
     {
@@ -294,6 +409,7 @@ extern "C" unsigned long MyMain(struct BootParam *param)
             memory::frame_array[i].flags.Type(),
             memory::frame_array[i].flags.Used() ? 0 : 1);
     }
+    */
 
     bool shifted = false;
     for (;;) {

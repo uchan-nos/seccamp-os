@@ -26,6 +26,19 @@ uint64_t CompareExchange(uint64_t* mem, uint64_t expected, uint64_t value);
 
 void LFencedWrite(uint64_t* mem, uint64_t value);
 
+void AsmInthandler00();
+void AsmInthandler01();
+void AsmInthandler03();
+void AsmInthandler04();
+void AsmInthandler05();
+void AsmInthandler06();
+void AsmInthandler07();
+void AsmInthandler08();
+void AsmInthandler0a();
+void AsmInthandler0b();
+void AsmInthandler0c();
+void AsmInthandler0d();
+void AsmInthandler0e();
 void AsmInthandler21();
 
 #ifdef __cplusplus

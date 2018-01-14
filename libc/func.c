@@ -6,6 +6,7 @@ extern int errno;
 #include <sys/types.h>
 #include <sys/stat.h>
 
+/*
 void *memcpy(void *dest, const void *src, size_t n)
 {
     unsigned char *d = dest;
@@ -26,6 +27,7 @@ void *memset(void *s, int c, size_t n)
     }
     return s;
 }
+*/
 
 caddr_t sbrk(int incr)
 {

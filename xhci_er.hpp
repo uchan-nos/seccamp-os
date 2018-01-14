@@ -1,5 +1,12 @@
 #pragma once
 
+#include <stddef.h>
+#include <string.h>
+
+#include "xhci_trb.hpp"
+
+#include "printk.hpp"
+
 namespace bitnos::xhci::eventring
 {
     class SegmentTableEntry
@@ -9,10 +16,11 @@ namespace bitnos::xhci::eventring
         using Iterator = ValueType*;
         using ConstIterator = const ValueType*;
 
-        SegmentTableEntry(uint64_t segment_base_addr, uint16_t segment_size)
-            : segment_base_address_(segment_base_addr),
-              segment_size_(segment_size)
-        {}
+        void SetAddressAndSize(TRB* segment_base, uint16_t segment_size)
+        {
+            segment_base_address_ = reinterpret_cast<uint64_t>(segment_base);
+            segment_size_ = segment_size;
+        }
 
         size_t Size() const { return segment_size_; }
 
@@ -38,16 +46,19 @@ namespace bitnos::xhci::eventring
 
     class Manager
     {
-        InterrupterRegSet& int_reg_set_;
+        static const size_t kNumTables = 1; // the number of tables
+        static const size_t kTableSize = 16; // the number of elements in a table
+
         unsigned char producer_cycle_;
-        SegmentTableEntry* erst_;
-        size_t erst_size_;
+        InterrupterRegSet& int_reg_set_;
         size_t erst_index_;
+        alignas(64) SegmentTableEntry erst_[kNumTables];
+        alignas(64) TRB data_[kNumTables][kTableSize];
 
         TRB* ReadDequeuePointer()
         {
             return reinterpret_cast<TRB*>(
-                bitutil::ClearBits(int_reg_set_.ERDP.Read(), 0xfu));
+                bitutil::ClearBits(int_reg_set_.ERDP.Read().data, 0xfu));
         }
 
         void WriteDequeuePointer(TRB* p)
@@ -60,29 +71,27 @@ namespace bitnos::xhci::eventring
             : int_reg_set_(int_reg_set)
         {}
 
-        SegmentTableEntry* SegmentTable() const { return erst_; }
-        size_t SegmentTableSize() const { return erst_size_; }
-
         void Initialize()
         {
-            const auto erstba = int_reg_set_.ERSTBA.Read();
-
             producer_cycle_ = 1;
-            erst_ = reinterpret_cast<SegmentTableEntry*>(
-                bitutil::ClearBits(erstba, 0x3fu));
-            erst_size_ = int_reg_set_.ERSTSZ.Read() & 0xffffu;
             erst_index_ = 0;
 
-            WriteDequeuePointer(erst_[0].begin());
-
-            for (size_t i = 0; i < erst_size_; ++i)
+            memset(data_, 0, sizeof(data_));
+            for (size_t i = 0; i < kNumTables; ++i)
             {
-                auto& segment = erst_[i];
-                memset(segment.begin(), 0, sizeof(TRB) * segment.Size());
+                erst_[i].SetAddressAndSize(data_[i], kTableSize);
             }
 
+            int_reg_set_.ERSTSZ.Write(kNumTables);
+
+            WriteDequeuePointer(data_[0]);
+
             // reload base address to reset the state of the ring
-            int_reg_set_.ERSTBA.Write(erstba);
+            int_reg_set_.ERSTBA.Write(reinterpret_cast<uint64_t>(erst_));
+            // 仕様書にはこうある
+            // Write the ERST Base Address (ERSTBA) register with the value of ERST(0).BaseAddress.
+            // つまり erst_[0].segment_base_address_ を ERSTBA に書き込めと言っている．
+            // しかし，これは間違いだと思う…
         }
 
         bool HasFront()
@@ -104,7 +113,7 @@ namespace bitnos::xhci::eventring
             if (p == current_segment.cend())
             {
                 ++erst_index_;
-                if (erst_index_ == erst_size_)
+                if (erst_index_ == kNumTables)
                 {
                     erst_index_ = 0;
                     producer_cycle_ = 1 - producer_cycle_;

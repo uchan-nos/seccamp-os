@@ -6,20 +6,18 @@ OBJS = main.o hankaku.o asmfunc.o inthandler.o libc/func.o \
 
 .PHONY: all
 all:
-	$(MAKE) kernel.elf
+	$(MAKE) LDFLAGS="$(LDFLAGS) -Ttext-segment=0x00100000" kernel.elf
+
+.PHONY: pie
+pie:
+	$(MAKE) CFLAGS="$(CFLAGS) -fPIE" LDFLAGS="$(LDFLAGS) -pie -Ttext-segment=0" kernel.elf
 
 hankaku.o: hankaku.bin
 	$(OBJCOPY) -I binary -O elf64-x86-64 -B i386 $< $@
 
-#kernel.elf: $(OBJS) depends Makefile
-#	$(LD) -Tkernel.ld -z max-page-size=0x1000 \
-#	    -Map kernel.map -o kernel.elf $(OBJS) -lc
-
-CFLAGS := $(CFLAGS) -fPIE
-CXXFLAGS := $(CXXFLAGS) -fPIE
 kernel.elf: $(OBJS) depends Makefile
-	$(LD) -Tkernel.ld -z max-page-size=0x1000 \
-	    -Map kernel.map -o kernel.elf $(OBJS) -lc -pie
+	$(LD) $(LDFLAGS) -Tkernel.ld -z max-page-size=0x1000 \
+	    -Map kernel.map -o kernel.elf $(OBJS) -lc
 
 .PHONY: run
 run: all
@@ -28,7 +26,8 @@ run: all
 	    -drive if=pflash,format=raw,readonly,file=$(OVMF_CODE) \
 	    -drive if=pflash,format=raw,file=$(OVMF_VARS) \
 	    -drive if=ide,file=fat:rw:$(DISKIMAGE),index=0,media=disk \
-	    -device nec-usb-xhci,id=xhci
+	    -device nec-usb-xhci,id=xhci \
+	    -device usb-mouse -device usb-kbd
 
 # -device usb-kbd $(QEMU_OPT)
 # -device usb-mouse
@@ -44,9 +43,25 @@ install_usb:
 	    (echo "Please mount your usb stick at $(USB_MOUNT_POINT)"; exit 1)
 	sudo cp --dereference --recursive $(DISKIMAGE)/* $(USB_MOUNT_POINT)
 
+disk.raw: kernel.elf
+	qemu-img create -f raw disk.raw 128m
+	mkfs.fat disk.raw
+	mkdir .mnt
+	sudo mount -o loop disk.raw .mnt
+	sudo cp --dereference --recursive $(DISKIMAGE)/* .mnt/
+	sudo umount .mnt
+	rmdir .mnt
+
+disk.vdi: disk.raw
+	rm -f disk.vdi
+	VBoxManage convertfromraw disk.raw disk.vdi --format VDI --variant Fixed --uuid 3970c919-0551-4946-a7ad-40f838de3877
+
 .PHONY: test
 test:
 	$(MAKE) -C test run
+
+%.s: %.cpp
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -S -o $@ $<
 
 # generate dependency files
 .%.d: %.c
