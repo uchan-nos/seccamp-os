@@ -34,17 +34,28 @@ namespace bitnos::xhci::transferring
             data_[write_index_].dwords[3]
                 = (trb.dwords[3] & 0xfffffffeu) | static_cast<uint32_t>(cycle_bit_);
 
-            if (ring)
-            {
-                db_regs_[slot_id_].DB.Write(dci_);
-            }
-
             ++write_index_;
             if (write_index_ == kDataSize - 1)
             {
-                // TODO: place link TRB
+                LinkTRB link{};
+                link.bits.ring_segment_pointer = reinterpret_cast<uint64_t>(data_) >> 4;
+                link.bits.toggle_cycle = 1;
+
+                for (int i = 0; i < 3; ++i)
+                {
+                    // dwords[0..2] must be written prior to dwords[3].
+                    data_[write_index_].dwords[i] = link.dwords[i];
+                }
+                data_[write_index_].dwords[3]
+                    = (link.dwords[3] & 0xfffffffeu) | static_cast<uint32_t>(cycle_bit_);
+
                 write_index_ = 0;
                 cycle_bit_ = !cycle_bit_;
+            }
+
+            if (ring)
+            {
+                db_regs_[slot_id_].DB.Write(dci_);
             }
         }
 

@@ -40,6 +40,7 @@ namespace bitnos::xhci
         auto config = op_->CONFIG.Read().data;
         config &= 0xffffff00u;
         config |= kDeviceContextCount;
+        //config |= 1u << 9; // CIE
         op_->CONFIG.Write(config);
 
         op_->DCBAAP.Write(reinterpret_cast<uint64_t>(device_context_base_addresses_));

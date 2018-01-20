@@ -152,6 +152,12 @@ namespace bitnos::xhci
         bits.trb_type = 23;
     }
 
+    NormalTRB::NormalTRB()
+        : dwords{}
+    {
+        bits.trb_type = 1;
+    }
+
     SetupStageTRB::SetupStageTRB()
         : dwords{}
     {
@@ -170,6 +176,12 @@ namespace bitnos::xhci
         : dwords{}
     {
         bits.trb_type = 4;
+    }
+
+    LinkTRB::LinkTRB()
+        : dwords{}
+    {
+        bits.trb_type = 6;
     }
 
     NoOpTRB::NoOpTRB()

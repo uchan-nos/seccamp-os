@@ -172,6 +172,33 @@ namespace bitnos::xhci
         } bits;
     };
 
+    union NormalTRB
+    {
+        uint32_t dwords[4];
+        struct
+        {
+            uint64_t data_buffer_pointer;
+
+            uint32_t trb_transfer_length : 17;
+            uint32_t td_size : 5;
+            uint32_t interrupter_target : 10;
+
+            uint32_t cycle_bit : 1;
+            uint32_t evaluate_next_trb : 1;
+            uint32_t interrupt_on_short_packet : 1;
+            uint32_t no_snoop : 1;
+            uint32_t chain_bit : 1;
+            uint32_t interrupt_on_completion : 1;
+            uint32_t immediate_data : 1;
+            uint32_t : 2;
+            uint32_t block_event_interrupt : 1;
+            uint32_t trb_type : 6;
+            uint32_t : 16;
+        } bits;
+
+        NormalTRB();
+    };
+
     union SetupStageTRB
     {
         uint32_t dwords[4];
@@ -250,6 +277,30 @@ namespace bitnos::xhci
         } bits;
 
         StatusStageTRB();
+    };
+
+    union LinkTRB
+    {
+        uint32_t dwords[4];
+        struct
+        {
+            uint64_t : 4;
+            uint64_t ring_segment_pointer : 60;
+
+            uint32_t : 22;
+            uint32_t interrupter_target : 10;
+
+            uint32_t cycle_bit : 1;
+            uint32_t toggle_cycle : 1;
+            uint32_t : 2;
+            uint32_t chain_bit : 1;
+            uint32_t interrupt_on_completion : 1;
+            uint32_t : 4;
+            uint32_t trb_type : 6;
+            uint32_t : 16;
+        } bits;
+
+        LinkTRB();
     };
 
     union NoOpTRB
