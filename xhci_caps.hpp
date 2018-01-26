@@ -93,8 +93,8 @@ namespace bitnos::xhci::caps
 
         MemMapRegister<Offset00_Bitmap> offset00;
         MemMapRegister32 name_string;
-        MemMapRegister<Offset00_Bitmap> offset08;
-        MemMapRegister<Offset00_Bitmap> offset0c;
+        MemMapRegister<Offset08_Bitmap> offset08;
+        MemMapRegister<Offset0c_Bitmap> offset0c;
     } __attribute__((__packed__));
 
     union SupportedProtocol_Bitmap
@@ -192,7 +192,7 @@ namespace bitnos::xhci::caps
         ConstIterator cend() const { return end_; }
 
     private:
-        CapabilityIterator begin_;
-        CapabilityIterator end_;
+        const CapabilityIterator begin_;
+        const CapabilityIterator end_;
     };
 }

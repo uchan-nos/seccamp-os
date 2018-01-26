@@ -6,6 +6,7 @@
 #include "memory_op.hpp"
 #include "bootparam.h"
 #include "pci.hpp"
+#include "msr.hpp"
 #include "xhci.hpp"
 #include "xhci_trb.hpp"
 #include "xhci_tr.hpp"
@@ -13,6 +14,7 @@
 #include "xhci_cr.hpp"
 #include "bitutil.hpp"
 #include "printk.hpp"
+#include "mutex.hpp"
 
 extern BootParam* kernel_boot_param;
 
@@ -271,6 +273,8 @@ extern BootParam* kernel_boot_param;
     const size_t kTRBufSize = 32;
     alignas(64) uint8_t tr_buf[sizeof(xhci::transferring::Manager) * kTRBufSize];
     bool tr_buf_assigned[kTRBufSize] = {};
+
+    xhci::transferring::Manager* tr_mgr_for_keyboard;
 
     template <typename... Args>
     xhci::transferring::Manager* AllocateTRManager(Args... args)
@@ -612,6 +616,7 @@ extern BootParam* kernel_boot_param;
 
 
     alignas(64) uint8_t xhc_buf[sizeof(xhci::Controller)];
+    xhci::Controller* xhc;
 
     unsigned long long GetCSCBits(xhci::PortRegSetArray port_reg_sets)
     {
@@ -630,37 +635,6 @@ extern BootParam* kernel_boot_param;
     const char* usage_type_interrupt[] = {"Periodic", "Notification", "Reserved", "Reserved"};
     const char* sync_type_isochronous[] = {"No-Sync", "Async", "Adaptive", "Sync"};
     const char* usage_type_isochronous[] = {"Data", "Feedback", "Implicit", "Reserved"};
-
-    const char keycode_map[256] = {
-           0,    0,    0,    0,  'a',  'b',  'c',  'd', // 0
-         'e',  'f',  'g',  'h',  'i',  'j',  'k',  'l', // 8
-         'm',  'n',  'o',  'p',  'q',  'r',  's',  't', // 16
-         'u',  'v',  'w',  'x',  'y',  'z',  '1',  '2', // 24
-         '3',  '4',  '5',  '6',  '7',  '8',  '9',  '0', // 32
-        '\n', '\b', 0x08, '\t',  ' ',  '-',  '=',  '[', // 40
-         ']', '\\',  '#',  ';', '\'',  '`',  ',',  '.', // 48
-         '/',    0,    0,    0,    0,    0,    0,    0, // 56
-           0,    0,    0,    0,    0,    0,    0,    0, // 64
-           0,    0,    0,    0,    0,    0,    0,    0, // 72
-           0,    0,    0,    0,  '/',  '*',  '-',  '+', // 80
-        '\n',  '1',  '2',  '3',  '4',  '5',  '6',  '7', // 88
-         '8',  '9',  '0',  '.', '\\',    0,    0,  '=', // 96
-    };
-    const char keycode_map_shifted[256] = {
-           0,    0,    0,    0,  'A',  'B',  'C',  'D', // 0
-         'E',  'F',  'G',  'H',  'I',  'J',  'K',  'L', // 8
-         'M',  'N',  'O',  'P',  'Q',  'R',  'S',  'T', // 16
-         'U',  'V',  'W',  'X',  'Y',  'Z',  '!',  '@', // 24
-         '#',  '$',  '%',  '^',  '&',  '*',  '(',  ')', // 32
-        '\n', '\b', 0x08, '\t',  ' ',  '_',  '+',  '{', // 40
-         '}',  '|',  '~',  ':',  '"',  '~',  '<',  '>', // 48
-         '?',    0,    0,    0,    0,    0,    0,    0, // 56
-           0,    0,    0,    0,    0,    0,    0,    0, // 64
-           0,    0,    0,    0,    0,    0,    0,    0, // 72
-           0,    0,    0,    0,  '/',  '*',  '-',  '+', // 80
-        '\n',  '1',  '2',  '3',  '4',  '5',  '6',  '7', // 88
-         '8',  '9',  '0',  '.', '\\',    0,    0,  '=', // 96
-    };
 
     xhci::transferring::Manager* ConfigureEndpoint(
         xhci::Controller* xhc,
@@ -750,7 +724,7 @@ extern BootParam* kernel_boot_param;
         const auto bar = pci::ReadBar(xhci_dev, 0);
         const auto mmio_base = bitutil::ClearBits(bar.value, 0xf);
 
-        auto xhc = new(xhc_buf) xhci::Controller{mmio_base};
+        xhc = new(xhc_buf) xhci::Controller{mmio_base};
         auto& cap_reg = xhc->CapabilityRegisters();
         auto& op_reg = xhc->OperationalRegisters();
         auto& cr_mgr = xhc->CommandRingManager();
@@ -770,6 +744,104 @@ extern BootParam* kernel_boot_param;
         */
 
         xhc->Initialize();
+
+        auto ia32_apic_base = msr::Read(msr::IA32_APIC_BASE);
+        printk("IA32_APIC_BASE %08x (APIC is %s)\n", ia32_apic_base,
+            (ia32_apic_base & (1u << 11)) ? "enabled" : "disabled");
+
+        const uint8_t bsp_local_apic_id = *reinterpret_cast<const uint32_t*>(0xfee00020) >> 24;
+
+        uint64_t cap_addr = xhci_dev.ReadCapabilityPointer();
+        auto cap = xhci_dev.ReadCapabilityStructure(cap_addr);
+        while (true)
+        {
+            if (cap.cap_id == 0x11)
+            {
+                auto msix_cap = pci::ReadMSIXCapabilityStructure(xhci_dev, cap_addr);
+                auto header = msix_cap.header;
+                auto table = msix_cap.table;
+                auto pba = msix_cap.pba;
+
+                const auto table_bar = pci::ReadBar(xhci_dev, table.bits.bir);
+                const auto pba_bar = pci::ReadBar(xhci_dev, pba.bits.bir);
+                const auto table_addr = table_bar.value + table.bits.offset << 3;
+                const auto pba_addr = pba_bar.value + pba.bits.offset << 3;
+
+                printk("MSI-X Conf Cap:"
+                    " table size %u, func mask %u, msix enable %u",
+                    ", table %u %08x, pba %u %08x\n",
+                    header.bits.table_size,
+                    header.bits.function_mask,
+                    header.bits.msix_enable,
+                    table.bits.bir, table_addr,
+                    pba.bits.bir, pba_addr);
+
+                auto* msix_table = reinterpret_cast<pci::MSIXTableEntry*>(table_addr);
+
+                for (size_t i = 0; i <= header.bits.table_size; ++i)
+                {
+                    printk(" Table[%lu]: MsgAddr %08x, Upper %08x"
+                        ", MsgData %08x, VectCtrl %08x\n",
+                        i,
+                        msix_table[i].msg_addr.Read(),
+                        msix_table[i].msg_upper_addr.Read(),
+                        msix_table[i].msg_data.Read(),
+                        msix_table[i].vector_control.Read());
+                }
+            }
+            else if (cap.cap_id == 0x05)
+            {
+                auto msi_cap = pci::ReadMSICapabilityStructure(xhci_dev, cap_addr);
+
+                printk("MSI Conf Cap:"
+                    " msi enable %u, multi msg cap %u, enable %u, addr64 %u, pvmask %u"
+                    ", addr %08x, upper %08x, data %08x, mask %08x, pending %08x\n",
+                    msi_cap.header.bits.msi_enable,
+                    msi_cap.header.bits.multi_msg_capable,
+                    msi_cap.header.bits.multi_msg_enable,
+                    msi_cap.header.bits.addr_64_capable,
+                    msi_cap.header.bits.per_vector_mask_capable,
+                    msi_cap.msg_addr,
+                    msi_cap.msg_upper_addr,
+                    msi_cap.msg_data,
+                    msi_cap.mask_bits,
+                    msi_cap.pending_bits);
+
+                msi_cap.header.bits.msi_enable = 1;
+                msi_cap.msg_addr = 0xfee00000u | (bsp_local_apic_id << 12);
+                msi_cap.msg_data = 0xc000u | 0x40u;
+
+                pci::WriteMSICapabilityStructure(xhci_dev, cap_addr, msi_cap);
+
+                msi_cap = pci::ReadMSICapabilityStructure(xhci_dev, cap_addr);
+
+                printk("MSI Conf Cap:"
+                    " msi enable %u, multi msg cap %u, enable %u, addr64 %u, pvmask %u"
+                    ", addr %08x, upper %08x, data %08x, mask %08x, pending %08x\n",
+                    msi_cap.header.bits.msi_enable,
+                    msi_cap.header.bits.multi_msg_capable,
+                    msi_cap.header.bits.multi_msg_enable,
+                    msi_cap.header.bits.addr_64_capable,
+                    msi_cap.header.bits.per_vector_mask_capable,
+                    msi_cap.msg_addr,
+                    msi_cap.msg_upper_addr,
+                    msi_cap.msg_data,
+                    msi_cap.mask_bits,
+                    msi_cap.pending_bits);
+            }
+            else
+            {
+                printk("Capability %u\n", cap.cap_id);
+            }
+
+            if (cap.next_ptr == 0)
+            {
+                break;
+            }
+
+            cap_addr = cap.next_ptr;
+            cap = xhci_dev.ReadCapabilityStructure(cap_addr);
+        }
 
         //xhci::NoOpCommandTRB no_op_cmd{};
 
@@ -974,6 +1046,8 @@ extern BootParam* kernel_boot_param;
             SetConfiguration(xhc, slot_id, configuration_value);
             printk("Current Configuration %u\n", GetConfiguration(xhc, slot_id));
             auto tr_mgr = ConfigureEndpoint(xhc, slot_id, 1, true);
+            tr_mgr_for_keyboard = tr_mgr;
+            printk("TR Manager for keyboard %08x\n", tr_mgr_for_keyboard);
 
             printk("Pussing NoOp\n");
             xhci::NoOpTRB noop{};
@@ -989,6 +1063,18 @@ extern BootParam* kernel_boot_param;
                 ShowEventTRB(trb);
             }
 
+            auto& int_reg_set = xhc->InterrupterRegSets()[0];
+
+            //auto imod = int_reg_set.IMOD.Read();
+            //imod.data = 4000;
+            //int_reg_set.IMOD.Write(imod);
+
+            auto iman = int_reg_set.IMAN.Read();
+            iman.data |= 3u;
+            printk("Setting IMAN %u\n", iman.data);
+            int_reg_set.IMAN.Write(iman);
+
+            /*
             while (true)
             {
                 memset(buf, 0, sizeof(buf));
@@ -1017,6 +1103,7 @@ extern BootParam* kernel_boot_param;
                     }
                 }
             }
+            */
 
             printk("DevCtx %u: Hub=%d, #EP=%d, slot state %02x, usb dev addr %02x, route string\n",
                 slot_id, sc.bits.hub, sc.bits.context_entries,

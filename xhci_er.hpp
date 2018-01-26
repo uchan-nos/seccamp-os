@@ -63,7 +63,7 @@ namespace bitnos::xhci::eventring
 
         void WriteDequeuePointer(TRB* p)
         {
-            int_reg_set_.ERDP.Write(reinterpret_cast<uint64_t>(p));
+            int_reg_set_.ERDP.Write(reinterpret_cast<uint64_t>(p) | 8u); // clear EHB
         }
 
     public:
@@ -112,9 +112,11 @@ namespace bitnos::xhci::eventring
             const auto& current_segment = erst_[erst_index_];
             if (p == current_segment.cend())
             {
+                printk("ER: p reaches the end of segment.\n");
                 ++erst_index_;
                 if (erst_index_ == kNumTables)
                 {
+                    printk(" toggling cycle bit\n");
                     erst_index_ = 0;
                     producer_cycle_ = 1 - producer_cycle_;
                 }

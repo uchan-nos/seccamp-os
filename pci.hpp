@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include "errorcode.hpp"
+#include "register.hpp"
 
 namespace bitnos::pci
 {
@@ -113,6 +114,76 @@ namespace bitnos::pci
     };
 
     PcieCapability ReadPcieCapabilityStructure(Device& device, uint8_t addr);
+
+    struct MSICapability
+    {
+        union Header_Bitmap
+        {
+            uint32_t data;
+            struct
+            {
+                uint32_t capability_id : 8;
+                uint32_t next_pointer : 8;
+                uint32_t msi_enable : 1;
+                uint32_t multi_msg_capable : 3;
+                uint32_t multi_msg_enable : 3;
+                uint32_t addr_64_capable : 1;
+                uint32_t per_vector_mask_capable : 1;
+                uint32_t : 7;
+            } bits;
+        };
+
+        Header_Bitmap header;
+        uint32_t msg_addr;
+        uint32_t msg_upper_addr;
+        uint32_t msg_data;
+        uint32_t mask_bits;
+        uint32_t pending_bits;
+    };
+
+    MSICapability ReadMSICapabilityStructure(Device& device, uint8_t addr);
+    void WriteMSICapabilityStructure(Device& device, uint8_t addr, const MSICapability& msi_cap);
+
+    struct MSIXTableEntry
+    {
+        MemMapRegister32 msg_addr;
+        MemMapRegister32 msg_upper_addr;
+        MemMapRegister32 msg_data;
+        MemMapRegister32 vector_control;
+    };
+
+    struct MSIXCapability
+    {
+        union Header_Bitmap
+        {
+            uint32_t data;
+            struct
+            {
+                uint32_t capability_id : 8;
+                uint32_t next_pointer : 8;
+                uint32_t table_size : 11;
+                uint32_t : 3;
+                uint32_t function_mask : 1;
+                uint32_t msix_enable : 1;
+            } bits;
+        };
+
+        union Offset_Bitmap
+        {
+            uint32_t data;
+            struct
+            {
+                uint32_t bir : 3;
+                uint32_t offset : 29;
+            } bits;
+        };
+
+        Header_Bitmap header;
+        Offset_Bitmap table;
+        Offset_Bitmap pba;
+    };
+
+    MSIXCapability ReadMSIXCapabilityStructure(Device& device, uint8_t addr);
 }
 
 #endif // PCI_HPP_

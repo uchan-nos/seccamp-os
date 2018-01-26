@@ -3,7 +3,8 @@ include ../Makefile.inc
 CPPFLAGS := -I../ $(UEFI_INC)
 CXXFLAGS := -g -Wall -std=c++1z -masm=intel
 
-OBJS = ../asmfunc.o ../memory.o test_queue.o test_mutex.o test_bitutil.o test_xhci.o test_memory.o
+OBJS = ../asmfunc.o ../memory.o test_queue.o test_mutex.o test_bitutil.o test_xhci.o test_memory.o \
+       usb/test_malloc.o ../usb/malloc.o
 
 .PHONY: all
 all: test.run

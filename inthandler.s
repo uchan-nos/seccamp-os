@@ -106,3 +106,9 @@ AsmInthandler0e:
 AsmInthandler21:
         call    Inthandler21
         iretq
+
+.extern Inthandler40
+.global AsmInthandler40
+AsmInthandler40:
+        call    Inthandler40
+        iretq

@@ -3,6 +3,10 @@
 .*.d
 Makefile.inc
 kernel.elf
+kernel.map
 diskimage/
 html/
 latex/
+OVMF_VARS.fd
+disk.raw
+disk.vdi

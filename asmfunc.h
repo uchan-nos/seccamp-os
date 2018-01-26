@@ -40,6 +40,7 @@ void AsmInthandler0c();
 void AsmInthandler0d();
 void AsmInthandler0e();
 void AsmInthandler21();
+void AsmInthandler40();
 
 #ifdef __cplusplus
 }

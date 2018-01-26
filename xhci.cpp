@@ -57,6 +57,7 @@ namespace bitnos::xhci
         // Set Run/Stop bit
         auto usbcmd = op_->USBCMD.Read().data;
         usbcmd |= 1u;
+        usbcmd |= 4u; // Interrupt Enable
         op_->USBCMD.Write(usbcmd);
 
         printk("Host controller has been started.\n");

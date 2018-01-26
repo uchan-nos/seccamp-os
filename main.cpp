@@ -22,6 +22,8 @@ int errno;
 #include "desctable.hpp"
 #include "queue.hpp"
 #include "mutex.hpp"
+#include "xhci.hpp"
+#include "xhci_tr.hpp"
 
 using namespace bitnos;
 
@@ -49,8 +51,12 @@ extern "C" int write(int file, char *ptr, int len)
     return len;
 }
 
+SpinLockMutex printk_mutex;
+
 int printk(const char* format, ...)
 {
+    LockGuard<SpinLockMutex> lock(printk_mutex);
+
     va_list ap;
     int result;
     char s[1024];
@@ -177,6 +183,7 @@ ArrayQueue<uint8_t, 16> keydat;
 SpinLockMutex keydat_mutex;
 volatile unsigned int num_lostkey = 0;
 
+
 extern "C" void Inthandler00(void)
 {
     printk("#DE\n");
@@ -274,6 +281,48 @@ extern "C" void Inthandler21(void)
     }
 }
 
+SpinLockMutex usb_key_received_mutex;
+volatile bool usb_key_received = false;
+
+void ShowEventTRB(xhci::TRB& trb);
+
+unsigned long long inthandler_40_called = 0;
+__attribute__ ((no_caller_saved_registers))
+extern "C" void Inthandler40(void)
+{
+    inthandler_40_called++;
+    //if (printk_mutex.TryLock())
+    //{
+    //    //printk("I40\n");
+    //    printk_mutex.Unlock();
+    //}
+
+    extern xhci::Controller* xhc;
+    while (xhc->EventRingManager().HasFront())
+    {
+        auto trb = xhc->EventRingManager().Front();
+        xhc->EventRingManager().Pop();
+        //ShowEventTRB(trb);
+
+        if (trb.bits.trb_type == 32) // Transfer Event
+        {
+            auto& transfer_event = reinterpret_cast<xhci::TransferEventTRB&>(trb);
+            auto issue_trb = reinterpret_cast<xhci::NormalTRB*>(transfer_event.bits.trb_pointer);
+            if (issue_trb->bits.trb_type == 1) // Normal TRB
+            {
+                uint8_t* buf = reinterpret_cast<uint8_t*>(issue_trb->bits.data_buffer_pointer);
+                if (keydat_mutex.TryLock())
+                {
+                    keydat.Push(buf[2]);
+                    keydat_mutex.Unlock();
+                }
+            }
+        }
+    }
+
+    *reinterpret_cast<volatile uint32_t*>(0xfee000b0) = 0;
+}
+
 static char keytable_normal[0x80] = {
     0,   0,   '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '^', 0x08, 0,
     'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', '@', '[', 0x0a, 0, 'A', 'S',
@@ -294,6 +343,37 @@ static char keytable_shifted[0x80] = {
     '2', '3', '0', '.', 0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
     0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
     0,   0,   0,   '_', 0,   0,   0,   0,   0,   0,   0,   0,   0,   '|', 0,   0
+};
+
+const char keycode_map[256] = {
+       0,    0,    0,    0,  'a',  'b',  'c',  'd', // 0
+     'e',  'f',  'g',  'h',  'i',  'j',  'k',  'l', // 8
+     'm',  'n',  'o',  'p',  'q',  'r',  's',  't', // 16
+     'u',  'v',  'w',  'x',  'y',  'z',  '1',  '2', // 24
+     '3',  '4',  '5',  '6',  '7',  '8',  '9',  '0', // 32
+    '\n', '\b', 0x08, '\t',  ' ',  '-',  '=',  '[', // 40
+     ']', '\\',  '#',  ';', '\'',  '`',  ',',  '.', // 48
+     '/',    0,    0,    0,    0,    0,    0,    0, // 56
+       0,    0,    0,    0,    0,    0,    0,    0, // 64
+       0,    0,    0,    0,    0,    0,    0,    0, // 72
+       0,    0,    0,    0,  '/',  '*',  '-',  '+', // 80
+    '\n',  '1',  '2',  '3',  '4',  '5',  '6',  '7', // 88
+     '8',  '9',  '0',  '.', '\\',    0,    0,  '=', // 96
+};
+const char keycode_map_shifted[256] = {
+       0,    0,    0,    0,  'A',  'B',  'C',  'D', // 0
+     'E',  'F',  'G',  'H',  'I',  'J',  'K',  'L', // 8
+     'M',  'N',  'O',  'P',  'Q',  'R',  'S',  'T', // 16
+     'U',  'V',  'W',  'X',  'Y',  'Z',  '!',  '@', // 24
+     '#',  '$',  '%',  '^',  '&',  '*',  '(',  ')', // 32
+    '\n', '\b', 0x08, '\t',  ' ',  '_',  '+',  '{', // 40
+     '}',  '|',  '~',  ':',  '"',  '~',  '<',  '>', // 48
+     '?',    0,    0,    0,    0,    0,    0,    0, // 56
+       0,    0,    0,    0,    0,    0,    0,    0, // 64
+       0,    0,    0,    0,    0,    0,    0,    0, // 72
+       0,    0,    0,    0,  '/',  '*',  '-',  '+', // 80
+    '\n',  '1',  '2',  '3',  '4',  '5',  '6',  '7', // 88
+     '8',  '9',  '0',  '.', '\\',    0,    0,  '=', // 96
 };
 
 BootParam* kernel_boot_param;
@@ -385,20 +465,24 @@ extern "C" unsigned long MyMain(struct BootParam *param)
     SET_IDT_ENTRY(0d);
     SET_IDT_ENTRY(0e);
 
+    // MSI
+    SET_IDT_ENTRY(40);
+
 #undef SET_IDT_ENTRY
 
     DebugShell shell(cons);
 
+    //init_pic();
+    //init_keyboard();
+
+    memory::Init();
+
+    __asm__("sti");
     const char* auto_cmd = "xhci\n";
     for (int i = 0; auto_cmd[i]; ++i)
     {
         shell.PutChar(auto_cmd[i]);
     }
-
-    init_pic();
-    init_keyboard();
-
-    memory::Init();
 
     /*
     printk("printing frame array: %016lx\n", reinterpret_cast<uintptr_t>(memory::frame_array));
@@ -412,6 +496,16 @@ extern "C" unsigned long MyMain(struct BootParam *param)
     */
 
     bool shifted = false;
+
+    extern xhci::transferring::Manager* tr_mgr_for_keyboard;
+    uint8_t buf[128];
+    memset(buf, 0, sizeof(buf));
+    xhci::NormalTRB normal{};
+    normal.bits.data_buffer_pointer = reinterpret_cast<uint64_t>(buf);
+    normal.bits.trb_transfer_length = 8;
+    normal.bits.interrupt_on_completion = 1;
+    tr_mgr_for_keyboard->Push(normal);
+
     for (;;) {
         {
             keydat_mutex.Lock();
@@ -426,6 +520,7 @@ extern "C" unsigned long MyMain(struct BootParam *param)
             keydat.Pop();
             keydat_mutex.Unlock();
             //printk("%2x (lost keys %u)\n", key, num_lostkey);
+            /*
             if (key < 0x80)
             {
                 // press
@@ -453,6 +548,20 @@ extern "C" unsigned long MyMain(struct BootParam *param)
                 {
                     shifted = false;
                 }
+            }
+            */
+
+            memset(buf, 0, sizeof(buf));
+            xhci::NormalTRB normal{};
+            normal.bits.data_buffer_pointer = reinterpret_cast<uint64_t>(buf);
+            normal.bits.trb_transfer_length = 8;
+            normal.bits.interrupt_on_completion = 1;
+            tr_mgr_for_keyboard->Push(normal);
+
+            char ascii = keycode_map[key];
+            if (ascii)
+            {
+                shell.PutChar(ascii);
             }
         }
     }

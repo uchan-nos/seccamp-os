@@ -2,6 +2,7 @@
 
 #include "asmfunc.h"
 #include "bitutil.hpp"
+#include "printk.hpp"
 #include <stdio.h>
 
 namespace
@@ -290,5 +291,60 @@ namespace bitnos::pci
         pcie_cap.root_status = device.ReadConfReg(addr + 4 * 8);
 
         return pcie_cap;
+    }
+
+    MSICapability ReadMSICapabilityStructure(Device& device, uint8_t addr)
+    {
+        MSICapability msi_cap{};
+
+        msi_cap.header.data = device.ReadConfReg(addr);
+        msi_cap.msg_addr = device.ReadConfReg(addr + 4);
+
+        uint8_t msg_data_addr = addr + 8;
+        if (msi_cap.header.bits.addr_64_capable)
+        {
+            msi_cap.msg_upper_addr = device.ReadConfReg(addr + 8);
+            msg_data_addr = addr + 12;
+        }
+
+        msi_cap.msg_data = device.ReadConfReg(msg_data_addr);
+
+        if (msi_cap.header.bits.per_vector_mask_capable)
+        {
+            msi_cap.mask_bits = device.ReadConfReg(msg_data_addr + 4);
+            msi_cap.pending_bits = device.ReadConfReg(msg_data_addr + 8);
+        }
+
+        return msi_cap;
+    }
+
+    void WriteMSICapabilityStructure(Device& device, uint8_t addr, const MSICapability& msi_cap)
+    {
+        device.WriteConfReg(addr, msi_cap.header.data);
+        device.WriteConfReg(addr + 4, msi_cap.msg_addr);
+
+        uint8_t msg_data_addr = addr + 8;
+        if (msi_cap.header.bits.addr_64_capable)
+        {
+            device.WriteConfReg(addr + 8, msi_cap.msg_upper_addr);
+            msg_data_addr = addr + 12;
+        }
+
+        device.WriteConfReg(msg_data_addr, msi_cap.msg_data);
+
+        if (msi_cap.header.bits.per_vector_mask_capable)
+        {
+            device.WriteConfReg(msg_data_addr + 4, msi_cap.mask_bits);
+            device.WriteConfReg(msg_data_addr + 8, msi_cap.pending_bits);
+        }
+    }
+
+    MSIXCapability ReadMSIXCapabilityStructure(Device& device, uint8_t addr)
+    {
+        MSIXCapability msix_cap;
+        msix_cap.header.data = device.ReadConfReg(addr);
+        msix_cap.table.data = device.ReadConfReg(addr + 4);
+        msix_cap.pba.data = device.ReadConfReg(addr + 8);
+        return msix_cap;
     }
 }
