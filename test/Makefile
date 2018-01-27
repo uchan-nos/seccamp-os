@@ -4,12 +4,14 @@ CPPFLAGS := -I../ $(UEFI_INC)
 CXXFLAGS := -g -Wall -std=c++1z -masm=intel
 
 OBJS = ../asmfunc.o ../memory.o test_queue.o test_mutex.o test_bitutil.o test_xhci.o test_memory.o \
-       usb/test_malloc.o ../usb/malloc.o
+       usb/test_malloc.o ../usb/malloc.o usb/test_register.o usb/xhci/test_registers.o usb/xhci/test_ring.o
+
+DEPENDS = $(join $(dir $(OBJS)),$(addprefix .,$(notdir $(OBJS:.o=.d))))
 
 .PHONY: all
 all: test.run
 
-test.run: $(OBJS) depends
+test.run: $(OBJS) $(DEPENDS)
 	$(CXX) -o test.run $(OBJS) -lCppUTest -lCppUTestExt -lpthread
 
 .PHONY: run
@@ -22,9 +24,11 @@ clean:
 
 .%.d: %.cpp
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -MM $< > $@
+	$(eval OBJ = $(<:.cpp=.o))
+	sed --in-place 's|$(notdir $(OBJ))|$(OBJ)|' $@
 
-DEPENDS = $(join $(dir $(OBJS)),$(addprefix .,$(notdir $(OBJS:.o=.d))))
 .PHONY: depends
-depends: $(DEPENDS)
-	echo $(DEPENDS)
+depends:
+	$(MAKE) $(DEPENDS)
+
 -include $(DEPENDS)

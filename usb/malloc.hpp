@@ -1,10 +1,10 @@
 #pragma once
 
-#include <stddef.h>
-
 /**
  * The memory allocator used in this USB driver.
  */
+
+#include <stddef.h>
 
 namespace usb
 {
