@@ -25,5 +25,31 @@ namespace usb
       unsigned int alignment=64u,
       unsigned int boundary=4096u);
 
+  template <typename T>
+  T* AllocArray(
+      size_t num_object,
+      unsigned int alignment=64u,
+      unsigned int boundary=4096u)
+  {
+    return reinterpret_cast<T*>(
+        AllocMem(sizeof(T) * num_object, alignment, boundary));
+  }
+
+  template <typename T>
+  T* AllocObject(
+      unsigned int alignment=64u,
+      unsigned int boundary=4096u)
+  {
+    return AllocArray<T>(1, alignment, boundary);
+  }
+
   void FreeMem(void* p);
+
+  template <typename T>
+  void FreeObject(const T* p)
+  {}
+
+  template <typename T>
+  void FreeArray(const T* p)
+  {}
 }

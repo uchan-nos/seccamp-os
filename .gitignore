@@ -1,4 +1,5 @@
 *~
+.*.swp
 *.o
 .*.d
 Makefile.inc

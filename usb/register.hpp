@@ -25,10 +25,6 @@ namespace usb
     static const size_t len_ = ArrayLength<decltype(T::data)>::value;
 
   public:
-    MemMapRegister() = delete;
-    MemMapRegister(const MemMapRegister&) = delete;
-    MemMapRegister& operator =(const MemMapRegister&) = delete;
-
     T Read() const
     {
       T tmp;

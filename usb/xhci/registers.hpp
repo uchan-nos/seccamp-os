@@ -307,6 +307,8 @@ namespace usb::xhci
     MemMapRegister<PORTHLPMC_Bitmap> PORTHLPMC;
   } __attribute__((packed));
 
+  using PortRegisterSetArray = ArrayWrapper<PortRegisterSet>;
+
   union IMAN_Bitmap
   {
     uint32_t data[1];
@@ -336,6 +338,16 @@ namespace usb::xhci
       uint32_t event_ring_segment_table_size : 16;
       uint32_t : 16;
     } __attribute__((packed)) bits;
+
+    uint16_t Size() const
+    {
+      return bits.event_ring_segment_table_size;
+    }
+
+    void SetSize(uint16_t value)
+    {
+      bits.event_ring_segment_table_size = value;
+    }
   } __attribute__((packed));
 
   union ERSTBA_Bitmap
@@ -389,6 +401,8 @@ namespace usb::xhci
     MemMapRegister<ERDP_Bitmap> ERDP;
   } __attribute__((packed));
 
+  using InterrupterRegisterSetArray = ArrayWrapper<InterrupterRegisterSet>;
+
   union Doorbell_Bitmap
   {
     uint32_t data[1];
@@ -399,4 +413,7 @@ namespace usb::xhci
       uint32_t db_stream_id : 16;
     } __attribute__((packed)) bits;
   } __attribute__((packed));
+
+  using DoorbellRegister = MemMapRegister<Doorbell_Bitmap>;
+  using DoorbellRegisterArray = ArrayWrapper<DoorbellRegister>;
 }

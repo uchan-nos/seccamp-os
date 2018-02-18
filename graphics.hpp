@@ -15,7 +15,7 @@ namespace bitnos::graphics
         int x, y;
     };
 
-    inline Point operator +(const Point& lhs, const Point& rhs)
+    inline constexpr Point operator +(const Point& lhs, const Point& rhs)
     {
         return {lhs.x + rhs.x, lhs.y + rhs.y};
     }
@@ -25,7 +25,7 @@ namespace bitnos::graphics
         unsigned int width, height;
     };
 
-    inline Point operator +(const Point& p, const RectSize& s)
+    inline constexpr Point operator +(const Point& p, const RectSize& s)
     {
         return {
             static_cast<decltype(p.x)>(p.x + s.width),

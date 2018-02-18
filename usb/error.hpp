@@ -9,6 +9,8 @@ namespace usb::error
   using Type = int;
 
   const Type kSuccess = 0;
+  const Type kNoEnoughMemory = 1;
+  const Type kHostControllerNotHalted = 2;
 }
 
 namespace usb

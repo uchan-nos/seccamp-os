@@ -2,7 +2,6 @@
 
 #include "asmfunc.h"
 #include "bitutil.hpp"
-#include "printk.hpp"
 #include <stdio.h>
 
 namespace
@@ -346,5 +345,68 @@ namespace bitnos::pci
         msix_cap.table.data = device.ReadConfReg(addr + 4);
         msix_cap.pba.data = device.ReadConfReg(addr + 8);
         return msix_cap;
+    }
+
+    Error ConfigureMSI(Device& device, uint8_t cap_addr, uint32_t msg_addr,
+                       uint32_t msg_data, unsigned int num_vector_exponent)
+    {
+        auto msi_cap = ReadMSICapabilityStructure(device, cap_addr);
+
+        if (msi_cap.header.bits.multi_msg_capable <= num_vector_exponent)
+        {
+            msi_cap.header.bits.multi_msg_enable =
+                msi_cap.header.bits.multi_msg_capable;
+        }
+        else
+        {
+            msi_cap.header.bits.multi_msg_enable = num_vector_exponent;
+        }
+
+        msi_cap.header.bits.msi_enable = 1;
+        msi_cap.msg_addr = msg_addr;
+        msi_cap.msg_data = msg_data;
+
+        pci::WriteMSICapabilityStructure(device, cap_addr, msi_cap);
+        return errorcode::kSuccess;
+    }
+
+    Error ConfigureMSIX(Device& device, uint8_t cap_addr, uint32_t msg_addr,
+                       uint32_t msg_data, unsigned int num_vector)
+    {
+        auto msix_cap = ReadMSIXCapabilityStructure(device, cap_addr);
+        return errorcode::kNotImplemented;
+    }
+
+    Error ConfigureMSI(Device& device, uint32_t msg_addr,
+                       uint32_t msg_data, unsigned int num_vector_exponent)
+    {
+        uint8_t msi_cap_addr = 0, msix_cap_addr = 0;
+
+        uint8_t cap_addr = device.ReadCapabilityPointer();
+        while (cap_addr != 0)
+        {
+            auto cap = device.ReadCapabilityStructure(cap_addr);
+            if (cap.cap_id == 0x05) // MSI
+            {
+                msi_cap_addr = cap_addr;
+            }
+            else if (cap.cap_id == 0x11) // MSIX
+            {
+                msix_cap_addr = cap_addr;
+            }
+            cap_addr = cap.next_ptr;
+        }
+
+        if (msi_cap_addr != 0)
+        {
+            return ConfigureMSI(device, msi_cap_addr,
+                                msg_addr, msg_data, num_vector_exponent);
+        }
+        if (msix_cap_addr != 0)
+        {
+            return ConfigureMSIX(device, msix_cap_addr,
+                                 msg_addr, msg_data, num_vector_exponent);
+        }
+        return errorcode::kNoMSICapability;
     }
 }

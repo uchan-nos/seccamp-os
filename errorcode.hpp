@@ -12,6 +12,7 @@ namespace bitnos::errorcode
     const Type kNotImplemented = 4;
     const Type kInvalidValue = 5;
     const Type kNoEnoughMemory = 6;
+    const Type kNoMSICapability = 7;
 }
 
 namespace bitnos

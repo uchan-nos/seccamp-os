@@ -118,7 +118,7 @@ namespace usb::xhci
     EndpointContext* EnableEndpoint(DeviceContextIndex dci)
     {
       input_control_context.add_context_flags |= 1u << dci.value;
-      return ep_contexts[dci.value - 1];
+      return &ep_contexts[dci.value - 1];
     }
   };
 }

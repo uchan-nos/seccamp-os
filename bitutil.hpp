@@ -39,6 +39,35 @@ namespace bitutil
         return -1;
     }
 
+    inline int BitScanReverse(uint64_t value)
+    {
+        if (value == 0)
+        {
+            return -1;
+        }
+
+        int64_t result;
+        __asm__("bsrq %1, %0  \n\t"
+                : "=r"(result)
+                : "m"(value)
+                );
+        return result;
+    }
+
+    template <typename T>
+    constexpr int BitScanReverseConst(T value)
+    {
+        int i = sizeof(T) * CHAR_BIT - 1;
+        for (; i >= 0; --i)
+        {
+            if (value & (static_cast<T>(1) << i))
+            {
+                return i;
+            }
+        }
+        return -1;
+    }
+
     /** ClearBits clears the specified bits of value and returns the result.
      *
      * example: ClearBits(0xdeadbeaf, 0xf0f0) == 0xdead0e0f

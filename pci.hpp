@@ -184,6 +184,22 @@ namespace bitnos::pci
     };
 
     MSIXCapability ReadMSIXCapabilityStructure(Device& device, uint8_t addr);
+
+    /** @brief ConfigureMSI enables MSI/MSI-X and writes the given message
+     * address and data to its register.
+     * If the device has both MSI and MSI-X, this function enables MSI.
+     *
+     * For MSI, num_vector shall be encoded as the Multiple Message Enable
+     * field in MSI capability registers.
+     *
+     * For MSI-X, num_vector shall be encoded as the number of entries
+     * in the MSI-X table.
+     *
+     * @param num_vector_exponent  The exponent of #vectors to be enabled.
+     *  If this is 3, 2^3 = 8 vectors shall be enabled.
+     */
+    Error ConfigureMSI(Device& device, uint32_t msg_addr,
+                       uint32_t msg_data, unsigned int num_vector_exponent);
 }
 
 #endif // PCI_HPP_

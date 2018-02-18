@@ -2,7 +2,12 @@ include Makefile.inc
 
 OBJS = main.o hankaku.o asmfunc.o inthandler.o libc/func.o \
        graphics.o debug_console.o memory.o memory_op.o desctable.o pci.o \
-       command.o xhci.o xhci_trb.o
+       command.o xhci.o xhci_trb.o usb/malloc.o usb/xhci/ring.o usb/xhci/trb.o
+
+DEPENDS = $(join $(dir $(OBJS)),$(addprefix .,$(notdir $(OBJS:.o=.d))))
+
+CFLAGS += -I$(PWD)
+CFLAGS += -mno-sse4 -mno-sse4 -mno-sse4a  # Conroe CPU doesn't support SSE4 and later.
 
 .PHONY: all
 all:
@@ -15,19 +20,28 @@ pie:
 hankaku.o: hankaku.bin
 	$(OBJCOPY) -I binary -O elf64-x86-64 -B i386 $< $@
 
-kernel.elf: $(OBJS) depends Makefile
+kernel.elf: $(OBJS) $(DEPENDS) Makefile
 	$(LD) $(LDFLAGS) -Tkernel.ld -z max-page-size=0x1000 \
 	    -Map kernel.map -o kernel.elf $(OBJS) -lc
 
-.PHONY: run
-run: all
-	$(QEMU) \
+.PHONY: raw_run
+raw_run:
+	$(QEMU) -trace events=trace.events \
+	    -cpu Conroe \
 	    -vga std -monitor stdio -gdb tcp::1234 -m 128M \
 	    -drive if=pflash,format=raw,readonly,file=$(OVMF_CODE) \
 	    -drive if=pflash,format=raw,file=$(OVMF_VARS) \
 	    -drive if=ide,file=fat:rw:$(DISKIMAGE),index=0,media=disk \
-	    -device nec-usb-xhci,id=xhci \
-	    -device usb-mouse -device usb-kbd
+	    -device nec-usb-xhci,id=xhci
+#	    -device usb-mouse -device usb-kbd
+
+.PHONY: run
+run: all
+	$(MAKE) raw_run
+
+.PHONY: run-pie
+run-pie: pie
+	$(MAKE) raw_run
 
 # -device usb-kbd $(QEMU_OPT)
 # -device usb-mouse
@@ -76,7 +90,8 @@ test:
 .%.d: %.bin
 	touch $@
 
-DEPENDS = $(join $(dir $(OBJS)),$(addprefix .,$(notdir $(OBJS:.o=.d))))
 .PHONY: depends
-depends: $(DEPENDS)
+depends:
+	$(MAKE) $(DEPENDS)
+
 -include $(DEPENDS)

@@ -16,6 +16,8 @@
 #include "printk.hpp"
 #include "mutex.hpp"
 
+#include "usb/xhci/xhci.hpp"
+
 extern BootParam* kernel_boot_param;
 
 //namespace
@@ -614,9 +616,11 @@ extern BootParam* kernel_boot_param;
     }
 
 
-
+#if 0
     alignas(64) uint8_t xhc_buf[sizeof(xhci::Controller)];
     xhci::Controller* xhc;
+#endif
+    usb::xhci::Controller* xhc;
 
     unsigned long long GetCSCBits(xhci::PortRegSetArray port_reg_sets)
     {
@@ -721,9 +725,32 @@ extern BootParam* kernel_boot_param;
             xhci_dev_index, dev_param.bus, dev_param.dev, dev_param.func);
 
         pci::NormalDevice xhci_dev(dev_param.bus, dev_param.dev, dev_param.func);
+
+        const uint8_t bsp_local_apic_id =
+            *reinterpret_cast<const uint32_t*>(0xfee00020) >> 24;
+
+        const uint32_t msi_msg_addr = 0xfee00000u | (bsp_local_apic_id << 12);
+        const uint32_t msi_msg_data = 0xc000u | 0x40u;
+        auto err = pci::ConfigureMSI(xhci_dev, msi_msg_addr, msi_msg_data, 0);
+        if (err != errorcode::kSuccess)
+        {
+            printk("failed to configure xHCI MSI capability: %d\n", err);
+            return;
+        }
+
         const auto bar = pci::ReadBar(xhci_dev, 0);
         const auto mmio_base = bitutil::ClearBits(bar.value, 0xf);
+        xhc = new usb::xhci::RealController{mmio_base};
 
+        if (err = xhc->Initialize(); err != usb::error::kSuccess)
+        {
+            delete xhc;
+            printk("failed to initialize xHCI controller: %d\n", err);
+            return;
+        }
+        return;
+
+#if 0
         xhc = new(xhc_buf) xhci::Controller{mmio_base};
         auto& cap_reg = xhc->CapabilityRegisters();
         auto& op_reg = xhc->OperationalRegisters();
@@ -1109,6 +1136,8 @@ extern BootParam* kernel_boot_param;
                 slot_id, sc.bits.hub, sc.bits.context_entries,
                 sc.bits.slot_state, sc.bits.usb_device_address);
         }
+
+#endif
     }
 
     alignas(0x1000) uint64_t page_dir_ptr_table[512];

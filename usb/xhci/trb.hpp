@@ -9,6 +9,9 @@
 
 namespace usb::xhci
 {
+  extern const char* const kTRBCompletionCodeToName[37];
+  extern const char* const kTRBTypeToName[64];
+
   union TRB
   {
     uint32_t data[4];
@@ -424,6 +427,32 @@ namespace usb::xhci
     } __attribute__((packed)) bits;
 
     CommandCompletionEventTRB()
+      : data{}
+    {
+      bits.trb_type = Type;
+    }
+  };
+
+  union PortStatusChangeEventTRB
+  {
+    static const unsigned int Type = 34;
+    uint32_t data[4];
+    struct
+    {
+      uint32_t : 24;
+      uint32_t port_id : 8;
+
+      uint32_t : 32;
+
+      uint32_t : 24;
+      uint32_t completion_code : 8;
+
+      uint32_t cycle_bit : 1;
+      uint32_t : 9;
+      uint32_t trb_type : 6;
+    } __attribute__((packed)) bits;
+
+    PortStatusChangeEventTRB()
       : data{}
     {
       bits.trb_type = Type;
