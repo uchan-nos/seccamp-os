@@ -45,4 +45,9 @@ namespace usb
   }
 
   void FreeMem(void* p) {}
+
+  void ResetAllocPointer()
+  {
+    alloc_ptr = reinterpret_cast<uintptr_t>(memory_pool);
+  }
 }

@@ -557,6 +557,24 @@ extern "C" unsigned long MyMain(struct BootParam *param)
 
     __asm__("sti");
 
+    // prohibit the first page (0 - 2MiB area)
+    uint64_t cr3;
+    __asm__("movq %%cr3,%0" : "=r"(cr3));
+    volatile uint64_t* pml4 = reinterpret_cast<uint64_t*>(cr3 & 0xfffffffffffff000lu);
+    volatile uint64_t* pdpt = reinterpret_cast<uint64_t*>(pml4[0] & 0xfffffffffffff000lu);
+    const bool page_1gb = pdpt[0] & 0x80u;
+    printk("PDPTE 1GB Page? : %u\n", page_1gb);
+
+    volatile uint64_t* pd = reinterpret_cast<uint64_t*>(pdpt[0] & 0xfffffffffffff000lu);
+    const bool page_2mb = pd[0] & 0x80u;
+    printk("PDE 2MB Page? : %u\n", page_2mb);
+
+    pd[0] = 0;
+
+    //volatile uint32_t* p = reinterpret_cast<volatile uint32_t*>(0x20);
+    //printk("reading null: %08x\n", *p);
+    //*p = 9;
+
     /*
     printk("printing frame array: %016lx\n", reinterpret_cast<uintptr_t>(memory::frame_array));
     for (size_t i = 0; i < memory::frame_array_size; ++i)
@@ -571,6 +589,21 @@ extern "C" unsigned long MyMain(struct BootParam *param)
     bool shifted = false;
 
     uint8_t buf[128];
+
+    usb::xhci::NoOpCommandTRB noop{};
+    xhc->CommandRing()->Push(noop);
+    xhc->DoorbellRegisterAt(0)->Ring(0);
+
+    for (int i = 1; i <= xhc->MaxPorts(); ++i)
+    {
+        auto port = xhc->PortAt(i);
+        if (port.IsConnectStatusChanged())
+        {
+            usb::InterruptMessage msg{};
+            msg.attr1 = i;
+            usb::xhci::OnPortStatusChanged(&xhci_callback_ctx, msg);
+        }
+    }
 
     int loop = 0;
     for (;;) {
@@ -616,8 +649,12 @@ extern "C" unsigned long MyMain(struct BootParam *param)
 
         if (has_usb_msg)
         {
-            printk("usb msg: type = %u, attr = 0x%lx, data = 0x%08lx\n",
-                usb_msg.type, usb_msg.attr, usb_msg.data);
+            printk("usb msg: type = %u, attr1..4 = 0x%x 0x%x 0x%x 0x%x"
+                ", data = 0x%08lx\n",
+                usb_msg.type,
+                usb_msg.attr1, usb_msg.attr2, usb_msg.attr3, usb_msg.attr4,
+                usb_msg.data);
+            usb::xhci::PostInterruptHandler(&xhci_callback_ctx, usb_msg);
         }
     }
 

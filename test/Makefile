@@ -3,10 +3,11 @@ include ../Makefile.inc
 CPPFLAGS := -I../ $(UEFI_INC)
 CXXFLAGS := -g -O2 -Wall -std=c++1z -masm=intel
 
-OBJS = common.o ../asmfunc.o ../memory.o ../usb/xhci/ring.o \
+OBJS = common.o ../asmfunc.o ../memory.o ../usb/xhci/xhci.o ../usb/xhci/ring.o ../usb/xhci/port.o \
+       ../usb/xhci/trb.o ../usb/xhci/devmgr.o ../usb/xhci/interrupt.o \
        test_queue.o test_mutex.o test_bitutil.o test_xhci.o test_memory.o \
        usb/test_malloc.o ../usb/malloc.o usb/test_register.o usb/xhci/test_registers.o usb/xhci/test_ring.o \
-       usb/xhci/test_interrupt.o
+       usb/xhci/test_interrupt.o usb/xhci/test_devmgr.o usb/xhci/test_device.o
 
 DEPENDS = $(join $(dir $(OBJS)),$(addprefix .,$(notdir $(OBJS:.o=.d))))
 

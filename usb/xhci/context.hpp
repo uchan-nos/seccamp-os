@@ -59,6 +59,16 @@ namespace usb::xhci
       uint32_t average_trb_length : 16;
       uint32_t max_esit_payload_lo : 16;
     } bits;
+
+    uint64_t TransferRing() const
+    {
+      return bits.tr_dequeue_pointer << 4;
+    }
+
+    void SetTransferRing(uint64_t value)
+    {
+      bits.tr_dequeue_pointer = value >> 4;
+    }
   };
 
   struct DeviceContextIndex

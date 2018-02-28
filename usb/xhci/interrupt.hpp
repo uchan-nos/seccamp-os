@@ -7,6 +7,8 @@
 #include "usb/error.hpp"
 #include "usb/xhci/xhci.hpp"
 
+#include "printk.hpp"
+
 namespace usb::xhci
 {
   struct CallbackContext
@@ -36,23 +38,9 @@ namespace usb::xhci
   /** @brief InterruptHandler is a callback function to handle interrupts to
    * this USB library. It will call ctx->EnqueueMessage with a message.
    */
-  void InterruptHandler(const CallbackContext* ctx)
-  {
-    auto er = ctx->xhc->PrimaryEventRing();
+  void InterruptHandler(const CallbackContext* ctx);
 
-    while (er->HasFront())
-    {
-      auto trb = er->Front();
-      if (trb->bits.trb_type == PortStatusChangeEventTRB::Type)
-      {
-        auto trb_ = reinterpret_cast<PortStatusChangeEventTRB*>(trb);
-        InterruptMessage msg{};
-        msg.type = InterruptMessageType::kXHCIPortStatusChangeEvent;
-        msg.attr = trb_->bits.port_id;
-        msg.data = nullptr;
-        ctx->EnqueueMessage(ctx, &msg);
-      }
-      er->Pop();
-    }
-  }
+  void OnPortStatusChanged(const CallbackContext* ctx, const InterruptMessage& msg);
+  void OnCommandCompleted(const CallbackContext* ctx, const InterruptMessage& msg);
+  void PostInterruptHandler(const CallbackContext* ctx, const InterruptMessage& msg);
 }

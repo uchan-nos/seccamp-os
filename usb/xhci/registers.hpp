@@ -4,6 +4,7 @@
  * xHCI register definitions.
  */
 
+#include <stddef.h>
 #include <stdint.h>
 #include "usb/register.hpp"
 
@@ -414,6 +415,20 @@ namespace usb::xhci
     } __attribute__((packed)) bits;
   } __attribute__((packed));
 
-  using DoorbellRegister = MemMapRegister<Doorbell_Bitmap>;
+  class DoorbellRegister
+  {
+    MemMapRegister<Doorbell_Bitmap> reg_;
+
+  public:
+    void Ring(uint8_t target, uint16_t stream_id = 0)
+    {
+      Doorbell_Bitmap value{};
+      value.bits.db_target = target;
+      value.bits.db_stream_id = stream_id;
+      reg_.Write(value);
+    }
+  };
+
+  //using DoorbellRegister = MemMapRegister<Doorbell_Bitmap>;
   using DoorbellRegisterArray = ArrayWrapper<DoorbellRegister>;
 }

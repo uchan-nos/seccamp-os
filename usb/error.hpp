@@ -11,6 +11,11 @@ namespace usb::error
   const Type kSuccess = 0;
   const Type kNoEnoughMemory = 1;
   const Type kHostControllerNotHalted = 2;
+  const Type kInvalidDeviceId = 3;
+  const Type kAlreadyAllocated = 4;
+  const Type kInvalidSlotId = 5;
+  const Type kInvalidEndpointNumber = 6;
+  const Type kTransferRingNotSet = 6;
 }
 
 namespace usb

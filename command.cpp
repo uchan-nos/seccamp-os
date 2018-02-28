@@ -740,6 +740,7 @@ extern BootParam* kernel_boot_param;
 
         const auto bar = pci::ReadBar(xhci_dev, 0);
         const auto mmio_base = bitutil::ClearBits(bar.value, 0xf);
+        printk("xhci mmio_base = %08lx\n", mmio_base);
         xhc = new usb::xhci::RealController{mmio_base};
 
         if (err = xhc->Initialize(); err != usb::error::kSuccess)

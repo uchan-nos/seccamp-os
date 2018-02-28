@@ -1,31 +1,30 @@
 #pragma once
 
+#include <stdint.h>
 #include "usb/error.hpp"
 
 namespace usb::xhci
 {
+  class Controller;
+  struct PortRegisterSet;
+  class Device;
+
   class Port
   {
-    PortRegisterSet* port_reg_set_;
+    Controller& xhc_;
+    const uint8_t port_num_;
+    PortRegisterSet& port_reg_set_;
 
   public:
-    Port(PortRegisterSet* port_reg_set)
-      : port_reg_set_{port_reg_set}
+    Port(Controller& xhc, uint8_t port_num, PortRegisterSet& port_reg_set)
+      : xhc_{xhc}, port_num_{port_num}, port_reg_set_{port_reg_set}
     {}
 
-    bool IsConnected() const
-    {
-      return port_reg_set_->PORTSC.Read().bits.current_connect_status;
-    }
-
-    bool IsEnabled() const
-    {
-      return port_reg_set_->PORTSC.Read().bits.port_enabled_disabled;
-    }
-
-    bool IsConnectStatusChanged() const
-    {
-      return port_reg_set_->PORTSC.Read().bits.connect_status_change;
-    }
+    uint8_t Number() const;
+    bool IsConnected() const;
+    bool IsEnabled() const;
+    bool IsConnectStatusChanged() const;
+    int Speed() const;
+    Device* Initialize();
   };
 }

@@ -4,10 +4,14 @@
  * Command, transfer, event ring implementation.
  */
 
+#include <string.h>
+
 #include "usb/error.hpp"
 #include "usb/malloc.hpp"
 #include "usb/xhci/registers.hpp"
 #include "usb/xhci/trb.hpp"
+
+#include "printk.hpp"
 
 namespace usb::xhci
 {
@@ -63,6 +67,7 @@ namespace usb::xhci
       {
         return error::kNoEnoughMemory;
       }
+      memset(buf_, 0, buf_size_ * sizeof(TRB));
 
       return error::kSuccess;
     }
@@ -156,6 +161,7 @@ namespace usb::xhci
       {
         return error::kNoEnoughMemory;
       }
+      memset(buf_, 0, buf_size_ * sizeof(TRB));
 
       erst_ = usb::AllocArray<EventRingSegmentTableEntry>(1);
       if (erst_ == nullptr)

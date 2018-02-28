@@ -62,6 +62,10 @@ namespace usb::xhci
   union SetupStageTRB
   {
     static const unsigned int Type = 2;
+    static const unsigned int kNoDataStage = 0;
+    static const unsigned int kOutDataStage = 2;
+    static const unsigned int kInDataStage = 3;
+
     uint32_t data[4];
     struct
     {
@@ -83,13 +87,15 @@ namespace usb::xhci
       uint32_t : 3;
       uint32_t trb_type : 6;
       uint32_t transfer_type : 2;
-      uint32_t slot_id : 14;
+      uint32_t : 14;
     } __attribute__((packed)) bits;
 
     SetupStageTRB()
       : data{}
     {
       bits.trb_type = Type;
+      bits.immediate_data = true;
+      bits.trb_transfer_length = 8;
     }
   };
 
@@ -458,4 +464,20 @@ namespace usb::xhci
       bits.trb_type = Type;
     }
   };
+
+  /** @brief TRBDynamicCast casts a trb pointer to other type of TRB.
+   *
+   * @param trb  source pointer
+   * @return  casted pointer if the source TRB's type is equal to the resulting
+   *  type. nullptr otherwise.
+   */
+  template <typename ToType, typename FromType>
+  ToType* TRBDynamicCast(FromType* trb)
+  {
+    if (ToType::Type == trb->bits.trb_type)
+    {
+      return reinterpret_cast<ToType*>(trb);
+    }
+    return nullptr;
+  }
 }

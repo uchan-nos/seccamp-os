@@ -10,7 +10,7 @@ namespace usb
 {
   /** The size of the memory pool from which this allocater allocates blocks.
    */
-  static const size_t kMemoryPoolSize = 4096 * 16;
+  static const size_t kMemoryPoolSize = 4096 * 32;
   /** Allocate a memory block with specified alignment and boundary contraint.
    *
    * @param size  Size of a memory block in bytes to be allocated.
@@ -52,4 +52,9 @@ namespace usb
   template <typename T>
   void FreeArray(const T* p)
   {}
+
+  /** @brief ResetAllocPointer resets the pointer from which memory block will
+   * be allocated. This function is for test purpuse.
+   */
+  void ResetAllocPointer();
 }
