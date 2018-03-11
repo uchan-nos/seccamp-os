@@ -25,6 +25,7 @@ namespace usb::xhci
     bool IsEnabled() const;
     bool IsConnectStatusChanged() const;
     int Speed() const;
+    Error Reset();
     Device* Initialize();
   };
 }

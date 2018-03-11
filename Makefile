@@ -2,7 +2,7 @@ include Makefile.inc
 
 OBJS = main.o hankaku.o asmfunc.o inthandler.o libc/func.o \
        graphics.o debug_console.o memory.o memory_op.o desctable.o pci.o \
-       command.o xhci.o xhci_trb.o usb/malloc.o \
+       command.o xhci.o xhci_trb.o usb/malloc.o usb/busdriver.o \
        usb/xhci/xhci.o usb/xhci/ring.o usb/xhci/trb.o usb/xhci/port.o usb/xhci/devmgr.o usb/xhci/interrupt.o
 
 DEPENDS = $(join $(dir $(OBJS)),$(addprefix .,$(notdir $(OBJS:.o=.d))))
@@ -34,7 +34,8 @@ raw_run:
 	    -drive if=pflash,format=raw,file=$(OVMF_VARS) \
 	    -drive if=ide,file=fat:rw:$(DISKIMAGE),index=0,media=disk \
 	    -device nec-usb-xhci,id=xhci \
-	    -device usb-mouse -device usb-kbd
+	    -device usb-kbd
+#	    -device usb-mouse -device usb-kbd
 
 .PHONY: run
 run: all

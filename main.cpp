@@ -645,15 +645,15 @@ extern "C" unsigned long MyMain(struct BootParam *param)
         }
         __asm__("sti");
 
-        printk("has_key %d, has_usb_msg %d\n", has_key, has_usb_msg);
+        //printk("has_key %d, has_usb_msg %d\n", has_key, has_usb_msg);
 
         if (has_usb_msg)
         {
-            printk("usb msg: type = %u, attr1..4 = 0x%x 0x%x 0x%x 0x%x"
-                ", data = 0x%08lx\n",
-                usb_msg.type,
-                usb_msg.attr1, usb_msg.attr2, usb_msg.attr3, usb_msg.attr4,
-                usb_msg.data);
+            //printk("usb msg: type = %u, attr1..4 = 0x%x 0x%x 0x%x 0x%x"
+            //    ", data = 0x%08lx\n",
+            //    usb_msg.type,
+            //    usb_msg.attr1, usb_msg.attr2, usb_msg.attr3, usb_msg.attr4,
+            //    usb_msg.data);
             usb::xhci::PostInterruptHandler(&xhci_callback_ctx, usb_msg);
         }
     }

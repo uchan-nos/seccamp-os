@@ -4,8 +4,10 @@
 
 #include "usb/error.hpp"
 #include "usb/endpoint.hpp"
+#include "usb/busdriver.hpp"
 #include "usb/xhci/context.hpp"
 #include "usb/xhci/ring.hpp"
+#include "usb/xhci/registers.hpp"
 
 namespace usb::xhci
 {
@@ -33,12 +35,12 @@ namespace usb::xhci
 
   class EndpointSet : public usb::EndpointSet
   {
-    DeviceContext* devctx_;
     Ring* rings_[31];
+    DoorbellRegister* dbreg_;
 
   public:
-    EndpointSet(DeviceContext* devctx)
-      : devctx_{devctx}, rings_{}
+    EndpointSet(Ring* default_control_pipe, DoorbellRegister* dbreg)
+      : rings_{default_control_pipe,}, dbreg_{dbreg}
     {}
 
     void SetTransferRing(DeviceContextIndex dci, Ring* ring)
@@ -62,7 +64,6 @@ namespace usb::xhci
       // control endpoint must be dir_in=true
       const DeviceContextIndex dci(ep_num, true);
 
-      EndpointContext* epctx = &devctx_->ep_contexts[dci.value - 1];
       Ring* tr = rings_[dci.value - 1];
 
       if (tr == nullptr)
@@ -99,7 +100,6 @@ namespace usb::xhci
       // control endpoint must be dir_in=true
       const DeviceContextIndex dci(ep_num, true);
 
-      EndpointContext* epctx = &devctx_->ep_contexts[dci.value - 1];
       Ring* tr = rings_[dci.value - 1];
 
       if (tr == nullptr)
@@ -108,12 +108,15 @@ namespace usb::xhci
       }
 
       auto status = StatusStageTRB{};
-      status.bits.interrupt_on_completion = true;
+      //status.bits.interrupt_on_completion = true;
 
       if (buf)
       {
         tr->Push(MakeSetupStageTRB(setup_data, SetupStageTRB::kInDataStage));
-        tr->Push(MakeDataStageTRB(buf, len, true));
+        //tr->Push(MakeDataStageTRB(buf, len, true));
+        auto data = MakeDataStageTRB(buf, len, true);
+        data.bits.interrupt_on_completion = true;
+        tr->Push(data);
       }
       else
       {
@@ -122,6 +125,8 @@ namespace usb::xhci
       }
 
       tr->Push(status);
+
+      dbreg_->Ring(dci.value);
 
       return error::kSuccess;
     }
@@ -133,8 +138,34 @@ namespace usb::xhci
 
     virtual Error Receive(int ep_num, void* buf, int len) override
     {
+      if (ep_num < 0 || 15 < ep_num)
+      {
+        return error::kInvalidEndpointNumber;
+      }
+
+      const DeviceContextIndex dci(ep_num, true);
+      Ring* tr = rings_[dci.value - 1];
+
+      if (tr == nullptr)
+      {
+        return error::kTransferRingNotSet;
+      }
+
+      NormalTRB normal{};
+      normal.bits.data_buffer_pointer = reinterpret_cast<uint64_t>(buf);
+      normal.bits.trb_transfer_length = len;
+      normal.bits.td_size = 0;
+      normal.bits.interrupter_target = 0;
+      normal.bits.interrupt_on_completion = true;
+      tr->Push(normal);
+
+      dbreg_->Ring(dci.value);
+
       return error::kSuccess;
     }
+
+    void* operator new(size_t size) { return AllocObject<Device>(); }
+    void operator delete(void* ptr) { return FreeObject(ptr); }
   };
 
   class Device
@@ -161,16 +192,15 @@ namespace usb::xhci
       for (size_t i = 0; i < 31; ++i)
       {
         const DeviceContextIndex dci(i + 1);
-        FreeObject(epset_.TransferRing(dci));
-        epset_.SetTransferRing(dci, nullptr);
-        on_transferred_callbacks_[i] = nullptr;
+        //on_transferred_callbacks_[i] = nullptr;
       }
       return error::kSuccess;
     }
 
     DeviceContext* DeviceContext() { return &ctx_; }
     InputContext* InputContext() { return &input_ctx_; }
-    class EndpointSet* EndpointSet() { return &epset_; }
+    usb::Device* USBDevice() { return usb_device_; }
+    void SetUSBDevice(usb::Device* value) { usb_device_ = value; }
 
     State State() const { return state_; }
     uint8_t SlotID() const { return slot_id_; }
@@ -191,56 +221,18 @@ namespace usb::xhci
       int i = index.value - 1;
       auto tr = AllocObject<Ring>();
       tr->Initialize(buf_size);
-      epset_.SetTransferRing(index, tr);
+      reinterpret_cast<usb::xhci::EndpointSet*>(usb_device_->EndpointSet())
+        ->SetTransferRing(index, tr);
       return error::kSuccess;
-    }
-
-    void SetOnTransferred(
-        DeviceContextIndex dci, OnTransferredCallbackType* callback)
-    {
-      on_transferred_callbacks_[dci.value - 1] = callback;
-    }
-
-    /** @brief OnTransferred calls a callback function if exist.
-     * This function will be called when a Transfer Event for this device
-     * (slot) has been received.
-     *
-     * @param dci  An endpoint to which the event targets.
-     * @param completion_code  A completion code of the event.
-     * @param trb_transfer_length  The residual number of bytes not transferred.
-     * @param issue_trb  Pointer to the TRB which issued the event.
-     */
-    void OnTransferred(
-        DeviceContextIndex dci,
-        int completion_code,
-        int trb_transfer_length,
-        TRB* issue_trb)
-    {
-      auto callback = on_transferred_callbacks_[dci.value - 1];
-      if (callback)
-      {
-        callback(this, dci, completion_code, trb_transfer_length, issue_trb);
-      }
-    }
-
-    template <typename TRBType>
-    void OnTransferred(
-        DeviceContextIndex dci,
-        int completion_code,
-        int trb_transfer_length,
-        TRBType* issue_trb)
-    {
-      OnTransferred(dci, completion_code, trb_transfer_length,
-                    reinterpret_cast<TRB*>(issue_trb));
     }
 
   private:
     alignas(64) struct DeviceContext ctx_;
     alignas(64) struct InputContext input_ctx_;
-    class EndpointSet epset_;
-    OnTransferredCallbackType* on_transferred_callbacks_[31];
 
     enum State state_;
     uint8_t slot_id_;
+
+    usb::Device* usb_device_;
   };
 }

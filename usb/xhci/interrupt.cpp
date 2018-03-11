@@ -56,11 +56,17 @@ namespace usb::xhci
     auto devmgr = ctx->xhc->DeviceManager();
     auto dev = devmgr->FindByPort(port_id, 0);
 
-    printk("OnPortStatusChanged: port %u, dev = %08lx, CSC = %u, IsConnected %u\n",
+    printk("OnPortStatusChanged: port %u, dev = %08lx, CSC = %u, PED = %u, IsConnected %u\n",
         port_id,
         dev,
+        port.IsEnabled(),
         port.IsConnectStatusChanged(),
         port.IsConnected());
+
+    if (!port.IsConnectStatusChanged())
+    {
+      return;
+    }
 
     if (dev == nullptr && port.IsConnected() &&
         slot_assigning_devices[port_id] == nullptr)
@@ -71,6 +77,9 @@ namespace usb::xhci
         printk("OnPortStatusChanged: No blank device\n");
         return;
       }
+
+      printk("Resetting port\n");
+      port.Reset();
 
       dev->SelectForSlotAssignment();
       slot_assigning_devices[port_id] = dev;
@@ -97,17 +106,90 @@ namespace usb::xhci
     return -1;
   }
 
+  struct ConfigureEndpointsArg
+  {
+    Controller* xhc;
+    uint8_t slot_id;
+  };
+
+  Error ConfigureEndpoints(EndpointConfig* configs, int len, void* arg)
+  {
+    const auto arg_ = reinterpret_cast<ConfigureEndpointsArg*>(arg);
+    auto dev = arg_->xhc->DeviceManager()->FindBySlot(arg_->slot_id);
+    auto devctx = dev->DeviceContext();
+    auto inpctx = dev->InputContext();
+
+    memset(&inpctx->input_control_context, 0, sizeof(InputControlContext));
+    memcpy(&inpctx->slot_context, &devctx->slot_context, sizeof(SlotContext));
+
+    auto slot_ctx = inpctx->EnableSlotContext();
+    slot_ctx->bits.context_entries = 31;
+
+    for (int i = 0; i < len; ++i)
+    {
+      const DeviceContextIndex ep_dci(configs[i].ep_num, configs[i].dir_in);
+      auto ep_ctx = inpctx->EnableEndpoint(ep_dci);
+      switch (configs[i].ep_type)
+      {
+      case EndpointType::kControl:
+        ep_ctx->bits.ep_type = 4;
+        break;
+      case EndpointType::kIsochronous:
+        ep_ctx->bits.ep_type = configs[i].dir_in ? 5 : 1;
+        break;
+      case EndpointType::kBulk:
+        ep_ctx->bits.ep_type = configs[i].dir_in ? 6 : 2;
+        break;
+      case EndpointType::kInterrupt:
+        ep_ctx->bits.ep_type = configs[i].dir_in ? 7 : 3;
+        break;
+      }
+      ep_ctx->bits.max_packet_size = configs[i].max_packet_size;
+      ep_ctx->bits.interval = configs[i].interval;
+      ep_ctx->bits.average_trb_length = 1;
+
+      auto tr = AllocObject<Ring>();
+      tr->Initialize(32);
+      const auto tr_addr = reinterpret_cast<uintptr_t>(tr->Buffer());
+
+      reinterpret_cast<usb::xhci::EndpointSet*>(dev->USBDevice()->EndpointSet())
+        ->SetTransferRing(ep_dci, tr);
+
+      ep_ctx->SetTransferRing(tr_addr);
+      ep_ctx->bits.dequeue_cycle_state = 1;
+      ep_ctx->bits.max_primary_streams = 0;
+      ep_ctx->bits.mult = 0;
+      ep_ctx->bits.error_count = 3;
+    }
+
+    ConfigureEndpointCommandTRB cmd{inpctx, arg_->slot_id};
+    arg_->xhc->CommandRing()->Push(cmd);
+    arg_->xhc->DoorbellRegisterAt(0)->Ring(0);
+
+    return error::kSuccess;
+  }
+
   Error AddressDevice(Controller* xhc, Device* dev, const Port& port, uint8_t slot_id)
   {
     const DeviceContextIndex dci_ep0{0, false};
 
-    if (auto err = dev->AllocTransferRing(dci_ep0, 32); IsError(err))
-    {
-      return err;
-    }
-    const auto tr_addr = reinterpret_cast<uintptr_t>(
-        dev->EndpointSet()->TransferRing(dci_ep0)->Buffer());
+    auto dbreg = xhc->DoorbellRegisterAt(slot_id);
 
+    auto tr = AllocObject<Ring>();
+    tr->Initialize(32);
+
+    auto configure_endpoints_arg = AllocObject<ConfigureEndpointsArg>();
+    configure_endpoints_arg->xhc = xhc;
+    configure_endpoints_arg->slot_id = slot_id;
+
+    auto epset = new EndpointSet(tr, dbreg);
+    auto usb_dev =
+      new usb::Device(epset, ConfigureEndpoints, configure_endpoints_arg);
+    dev->SetUSBDevice(usb_dev);
+
+    const auto tr_addr = reinterpret_cast<uintptr_t>(tr->Buffer());
+
+    memset(dev->InputContext(), 0, sizeof(InputContext));
     auto slot_ctx = dev->InputContext()->EnableSlotContext();
 
     slot_ctx->bits.route_string = 0;
@@ -137,7 +219,9 @@ namespace usb::xhci
     ep_ctx->bits.mult = 0;
     ep_ctx->bits.error_count = 3;
 
-    dev->AssignSlot(slot_id);
+    memset(dev->DeviceContext(), 0, sizeof(DeviceContext));
+    xhc->DeviceManager()->AssignSlot(dev, slot_id);
+
     AddressDeviceCommandTRB cmd{dev->InputContext(), slot_id};
     xhc->CommandRing()->Push(cmd);
     xhc->DoorbellRegisterAt(0)->Ring(0);
@@ -146,62 +230,6 @@ namespace usb::xhci
   }
 
   //void OnConfigureDescriptorReceived(
-
-  void OnDeviceDescriptorReceived(
-      Device* dev,
-      DeviceContextIndex dci,
-      int completion_code,
-      int trb_transfer_length,
-      TRB* issue_trb)
-  {
-    printk("OnDeviceDescriptorReceived: slot %u, dci %u, cc %d, len %d, issue trb %s\n",
-        dev->SlotID(), dci.value, completion_code, trb_transfer_length,
-        kTRBTypeToName[issue_trb->bits.trb_type]);
-
-    // TODO USB クラスドライバ登録票を作る
-  }
-
-  void GetDescriptor(Controller* xhc, Device* dev,
-                     uint8_t descriptor_type, uint8_t descriptor_index,
-                     size_t len, uint8_t* buf,
-                     Device::OnTransferredCallbackType* callback)
-  {
-    SetupStageTRB setup{};
-    setup.bits.request_type = 0b10000000;
-    setup.bits.request = 6; // get descriptor
-    setup.bits.value = (static_cast<uint16_t>(descriptor_type) << 8) | descriptor_index;
-    setup.bits.index = 0;
-    setup.bits.length = len;
-    setup.bits.transfer_type = 3; // IN Data Stage
-
-    DataStageTRB data{};
-    data.bits.data_buffer_pointer = reinterpret_cast<uint64_t>(buf);
-    data.bits.trb_transfer_length = len;
-    data.bits.td_size = 0;
-    data.bits.direction = 1; // 1: IN
-    data.bits.interrupt_on_completion = 1;
-
-    StatusStageTRB status{};
-
-    const DeviceContextIndex dci_ep0(0, false);
-
-    dev->SetOnTransferred(dci_ep0, callback);
-
-    auto tr = dev->EndpointSet()->TransferRing(dci_ep0);
-    tr->Push(setup);
-    tr->Push(data);
-    tr->Push(status);
-    printk("Issuing Control Stage for slot %u, dci %u\n",
-        dev->SlotID(), dci_ep0.value);
-    xhc->DoorbellRegisterAt(dev->SlotID())->Ring(dci_ep0.value);
-  }
-
-  Error ConfigureEndpoints(Controller* xhc, Device* dev)
-  {
-    uint8_t* buf = AllocArray<uint8_t>(128);
-    GetDescriptor(xhc, dev, 1, 0, 128, buf, OnDeviceDescriptorReceived);
-    return error::kSuccess;
-  }
 
   void OnCommandCompleted(const CallbackContext* ctx, const InterruptMessage& msg)
   {
@@ -240,14 +268,39 @@ namespace usb::xhci
         return;
       }
 
-      if (auto err = ConfigureEndpoints(ctx->xhc, dev); IsError(err))
+      // Now the device's default control pipe has been enabled.
+      if (auto err = dev->USBDevice()->ConfigureEndpoints(); IsError(err))
       {
         printk("OnCommandCompleted: ConfigureEndpoints failed: %d\n", err);
       }
     }
+    else if (auto t = TRBDynamicCast<ConfigureEndpointCommandTRB>(issue_trb); t)
+    {
+      Device* dev = ctx->xhc->DeviceManager()->FindBySlot(slot_id);
+      if (dev == nullptr)
+      {
+        printk("No device with the SlotID = %u\n", slot_id);
+        return;
+      }
+
+      const uint32_t add_context_flags =
+        dev->InputContext()->input_control_context.add_context_flags;
+      unsigned int configured_ep_nums = 0;
+      for (unsigned int i = 1; i <= 15; ++i)
+      {
+        DeviceContextIndex dci{i, false};
+        if ((add_context_flags >> dci.value) & 3)
+        {
+          configured_ep_nums |= (1u << i);
+        }
+      }
+
+      printk("Calling OnEndpointConfigured\n");
+      dev->USBDevice()->OnEndpointConfigured(configured_ep_nums);
+    }
   }
 
-  void OnTransferred(const CallbackContext* ctx, const InterruptMessage& msg)
+  void OnTransferCompleted(const CallbackContext* ctx, const InterruptMessage& msg)
   {
     const auto slot_id = msg.attr3;
     const auto endpoint_id = msg.attr4;
@@ -259,10 +312,7 @@ namespace usb::xhci
       return;
     }
 
-    dev->OnTransferred(DeviceContextIndex(endpoint_id),
-                       msg.attr1,
-                       msg.attr2,
-                       reinterpret_cast<TRB*>(msg.data));
+    dev->USBDevice()->OnCompleted(endpoint_id / 2);
   }
 
   void PostInterruptHandler(const CallbackContext* ctx, const InterruptMessage& msg)
@@ -270,7 +320,7 @@ namespace usb::xhci
     switch (msg.type)
     {
     case InterruptMessageType::kXHCITransferEvent:
-      OnTransferred(ctx, msg);
+      OnTransferCompleted(ctx, msg);
       break;
     case InterruptMessageType::kXHCICommandCompletionEvent:
       OnCommandCompleted(ctx, msg);

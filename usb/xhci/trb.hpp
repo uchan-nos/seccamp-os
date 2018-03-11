@@ -267,7 +267,7 @@ namespace usb::xhci
 
       uint32_t cycle_bit : 1;
       uint32_t : 8;
-      uint32_t deconfigure : 1;
+      uint32_t block_set_address_request : 1;
       uint32_t trb_type : 6;
       uint32_t : 8;
       uint32_t slot_id : 8;

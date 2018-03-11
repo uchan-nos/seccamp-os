@@ -69,5 +69,10 @@ namespace usb::xhci
 
     void* operator new(size_t size) { return AllocObject<RealController>(); }
     void operator delete(void* ptr) { return FreeObject(ptr); }
+
+    uint64_t* DCBAAP()
+    {
+      return reinterpret_cast<uint64_t*>(op_->DCBAAP.Read().data[0]);
+    }
   };
 }

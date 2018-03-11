@@ -30,6 +30,16 @@ namespace usb::xhci
     return port_reg_set_.PORTSC.Read().bits.port_speed;
   }
 
+  Error Port::Reset()
+  {
+    auto portsc = port_reg_set_.PORTSC.Read();
+    portsc.data[0] &= 0x0e00c3e0u;
+    portsc.data[0] |= 0x00020010u; // Write 1 to PR and CSC
+    port_reg_set_.PORTSC.Write(portsc);
+    while (port_reg_set_.PORTSC.Read().bits.port_reset);
+    return error::kSuccess;
+  }
+
   Device* Port::Initialize()
   {
     return nullptr;

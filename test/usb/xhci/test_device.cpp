@@ -4,6 +4,10 @@
 
 #include <CppUTest/CommandLineTestRunner.h>
 
+#if CPPUTEST_USE_NEW_MACROS
+#undef new
+#endif
+
 inline SimpleString StringFrom(enum usb::xhci::Device::State state)
 {
   return StringFrom(static_cast<int>(state));
@@ -49,14 +53,12 @@ TEST_GROUP(XHCIEndpointSet)
 {
   //FakeXHCIController xhc;
   usb::xhci::Ring rings[31];
-  usb::xhci::DeviceContext devctx;
+  usb::xhci::DoorbellRegister dbreg;
   usb::xhci::EndpointSet* epset;
 
   usb::xhci::Ring* EnableTransferRing(usb::xhci::DeviceContextIndex dci)
   {
     rings[dci.value - 1].Initialize(8);
-    devctx.ep_contexts[dci.value - 1].SetTransferRing(
-        reinterpret_cast<uint64_t>(rings[dci.value - 1].Buffer()));
     epset->SetTransferRing(dci, &rings[dci.value - 1]);
     return &rings[dci.value - 1];
   }
@@ -84,7 +86,8 @@ TEST_GROUP(XHCIEndpointSet)
   TEST_SETUP()
   {
     usb::ResetAllocPointer();
-    epset = new usb::xhci::EndpointSet{&devctx};
+    rings[0].Initialize(8); // default control pipe
+    epset = new usb::xhci::EndpointSet{&rings[0], &dbreg};
   }
 
   TEST_TEARDOWN()
@@ -118,7 +121,6 @@ TEST(XHCIEndpointSet, ControlOut)
 
 TEST(XHCIEndpointSet, ControlOut_NoData)
 {
-  char buf[16];
   auto tr = EnableTransferRing(usb::xhci::DeviceContextIndex(0, true));
   auto trb = tr->Buffer();
 
@@ -148,10 +150,27 @@ TEST(XHCIEndpointSet, ControlIn)
   auto data = CheckTRB<usb::xhci::DataStageTRB>(&trb[1]);
   CHECK_EQUAL(reinterpret_cast<uint64_t>(buf), data->bits.data_buffer_pointer);
   CHECK_TRUE(data->bits.direction);
+  CHECK_TRUE(data->bits.interrupt_on_completion);
 
   auto status = CheckTRB<usb::xhci::StatusStageTRB>(&trb[2]);
   CHECK_FALSE(status->bits.direction);
-  CHECK_TRUE(status->bits.interrupt_on_completion);
+}
+
+TEST(XHCIEndpointSet, TransferRing)
+{
+  const auto dci = usb::xhci::DeviceContextIndex(0, false);
+  CHECK_TRUE(epset->TransferRing(dci));
+}
+
+TEST(XHCIEndpointSet, SetTransferRing)
+{
+  auto tr = usb::AllocObject<usb::xhci::Ring>();
+  tr->Initialize(8);
+
+  const auto dci = usb::xhci::DeviceContextIndex(1, false);
+  CHECK_FALSE(epset->TransferRing(dci));
+  epset->SetTransferRing(dci, tr);
+  CHECK_TRUE(epset->TransferRing(dci));
 }
 
 TEST_GROUP(XHCIDevice)
@@ -176,26 +195,4 @@ TEST(XHCIDevice, StateTransition)
   CHECK_EQUAL(usb::xhci::Device::State::kSlotAssigning, dev->State());
   dev->AssignSlot(2);
   CHECK_EQUAL(usb::xhci::Device::State::kSlotAssigned, dev->State());
-}
-
-TEST(XHCIDevice, AllocRing)
-{
-  auto epset = dev->EndpointSet();
-
-  const auto dci = usb::xhci::DeviceContextIndex(0, false);
-  CHECK_FALSE(epset->TransferRing(dci));
-  CHECK_EQUAL(usb::error::kSuccess, dev->AllocTransferRing(dci, 8));
-  CHECK_TRUE(epset->TransferRing(dci));
-}
-
-TEST(XHCIDevice, OnTransferred)
-{
-  usb::xhci::DataStageTRB trb{};
-
-  const auto dci = usb::xhci::DeviceContextIndex(0, false);
-  dev->SetOnTransferred(dci, OnTransferredCallback);
-
-  CHECK_FALSE(on_transferred_callback_called);
-  dev->OnTransferred(dci, 1, 16, &trb);
-  CHECK_TRUE(on_transferred_callback_called);
 }

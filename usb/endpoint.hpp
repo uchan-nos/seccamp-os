@@ -4,6 +4,32 @@
 
 namespace usb
 {
+  enum class EndpointType
+  {
+    kControl = 0,
+    kIsochronous = 1,
+    kBulk = 2,
+    kInterrupt = 3,
+  };
+
+  struct EndpointConfig
+  {
+    /// An endpoint to be enabled.
+    int ep_num;
+
+    /// True if the direction of the endpoint is IN.
+    bool dir_in;
+
+    /// A type the endpoint should be enabled as.
+    EndpointType ep_type;
+
+    /// Maximum packet size (in bytes) of the endpoint.
+    int max_packet_size;
+
+    /// Interval of the endpoint. (125 * 2^(interval - 1) usec)
+    int interval;
+  };
+
   class EndpointSet
   {
   public:

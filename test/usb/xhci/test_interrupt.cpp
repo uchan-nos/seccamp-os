@@ -97,13 +97,27 @@ TEST(XHCIInterrupt, port_is_connected)
   // port is connected
   usb::xhci::PORTSC_Bitmap portsc{};
   portsc.bits.current_connect_status = true;
+  portsc.bits.connect_status_change = true;
   xhc.port_reg_set_.PORTSC.Write(portsc);
 
   // nothing in the command ring.
   auto trb = xhc.cr_.Buffer();
   CHECK_FALSE(trb->bits.cycle_bit);
 
+  // wait port_reset becomes true, then clear it.
+  std::thread th([&](){
+      while (xhc.port_reg_set_.PORTSC.Read().bits.port_reset == false)
+      {
+        std::this_thread::sleep_for(std::chrono::milliseconds{100});
+      }
+
+      usb::xhci::PORTSC_Bitmap portsc{};
+      portsc.bits.port_reset = false;
+      xhc.port_reg_set_.PORTSC.Write(portsc);
+    });
+
   usb::xhci::OnPortStatusChanged(&ctx, msg);
+  th.join();
 
   // OnPortStatusChanged should issue an EnableSlotCommand to the command ring.
   CHECK_TRUE(trb->bits.cycle_bit);
@@ -126,6 +140,7 @@ TEST(XHCIInterrupt, port_is_disconnected)
   // port is not connected
   usb::xhci::PORTSC_Bitmap portsc{};
   portsc.bits.current_connect_status = false;
+  portsc.bits.connect_status_change = true;
   xhc.port_reg_set_.PORTSC.Write(portsc);
 
   // device manager has an entity at index 1

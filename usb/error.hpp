@@ -15,7 +15,11 @@ namespace usb::error
   const Type kAlreadyAllocated = 4;
   const Type kInvalidSlotId = 5;
   const Type kInvalidEndpointNumber = 6;
-  const Type kTransferRingNotSet = 6;
+  const Type kTransferRingNotSet = 7;
+  const Type kInvalidDescriptor = 8;
+  const Type kTooLongDescriptor = 9;
+  const Type kNoSuitableEndpoint = 10;
+  const Type kUnkwonClass = 11;
 }
 
 namespace usb
