@@ -726,27 +726,36 @@ extern BootParam* kernel_boot_param;
 
         pci::NormalDevice xhci_dev(dev_param.bus, dev_param.dev, dev_param.func);
 
-        const uint8_t bsp_local_apic_id =
-            *reinterpret_cast<const uint32_t*>(0xfee00020) >> 24;
-
-        const uint32_t msi_msg_addr = 0xfee00000u | (bsp_local_apic_id << 12);
-        const uint32_t msi_msg_data = 0xc000u | 0x40u;
-        auto err = pci::ConfigureMSI(xhci_dev, msi_msg_addr, msi_msg_data, 0);
-        if (err != errorcode::kSuccess)
-        {
-            printk("failed to configure xHCI MSI capability: %d\n", err);
-            return;
-        }
-
         const auto bar = pci::ReadBar(xhci_dev, 0);
         const auto mmio_base = bitutil::ClearBits(bar.value, 0xf);
         printk("xhci mmio_base = %08lx\n", mmio_base);
         xhc = new usb::xhci::RealController{mmio_base};
 
-        if (err = xhc->Initialize(); err != usb::error::kSuccess)
+        if (auto err = xhc->Initialize(); err != usb::error::kSuccess)
         {
             delete xhc;
             printk("failed to initialize xHCI controller: %d\n", err);
+            return;
+        }
+
+        // Configure MSI
+        const uint8_t bsp_local_apic_id =
+            *reinterpret_cast<const uint32_t*>(0xfee00020) >> 24;
+
+        const uint32_t msi_msg_addr = 0xfee00000u | (bsp_local_apic_id << 12);
+        const uint32_t msi_msg_data = 0xc000u | 0x40u;
+        if (auto err = pci::ConfigureMSI(xhci_dev, msi_msg_addr, msi_msg_data, 0);
+            err != errorcode::kSuccess)
+        {
+            printk("failed to configure xHCI MSI capability: %d\n", err);
+            return;
+        }
+
+        // Run the controller
+        if (auto err = xhc->Run(); err != usb::error::kSuccess)
+        {
+            delete xhc;
+            printk("failed to run xHCI controller: %d\n", err);
             return;
         }
         return;

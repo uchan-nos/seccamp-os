@@ -57,8 +57,13 @@ namespace usb::xhci
     usbcmd.bits.interrupter_enable = true;
     op_->USBCMD.Write(usbcmd);
 
+    return error::kSuccess;
+  }
+
+  Error RealController::Run()
+  {
     // Run the controller
-    usbcmd = op_->USBCMD.Read();
+    auto usbcmd = op_->USBCMD.Read();
     usbcmd.bits.run_stop = true;
     op_->USBCMD.Write(usbcmd);
     op_->USBCMD.Read();

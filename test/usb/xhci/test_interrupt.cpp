@@ -20,6 +20,7 @@ namespace
     usb::xhci::DeviceManager devmgr_;
 
     usb::Error Initialize() { return usb::error::kSuccess; }
+    usb::Error Run() { return usb::error::kSuccess; }
     usb::xhci::Ring* CommandRing() { return &cr_; }
     usb::xhci::EventRing* PrimaryEventRing() { return &er_; }
     usb::xhci::DoorbellRegister* DoorbellRegisterAt(uint8_t index) { return &db_; }

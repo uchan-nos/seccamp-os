@@ -14,6 +14,7 @@ namespace usb::xhci
   public:
     virtual ~Controller() {}
     virtual Error Initialize() = 0;
+    virtual Error Run() = 0;
     virtual Ring* CommandRing() = 0;
     virtual EventRing* PrimaryEventRing() = 0;
     virtual DoorbellRegister* DoorbellRegisterAt(uint8_t index) = 0;
@@ -59,6 +60,7 @@ namespace usb::xhci
     {}
 
     Error Initialize();
+    Error Run();
     DoorbellRegister* DoorbellRegisterAt(uint8_t index);
 
     Ring* CommandRing() { return &cr_; }
